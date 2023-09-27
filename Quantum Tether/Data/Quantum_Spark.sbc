@@ -1715,11 +1715,11 @@
             <Property AnimationType="Animated" Name="Position" Type="Vector3">
               <Keys>
                 <Key>
-                  <Time>0.0569395</Time>
+                  <Time>0</Time>
                   <ValueVector3>
-                    <X>0.1</X>
-                    <Y>0.1</Y>
-                    <Z>0.1</Z>
+                    <X>0</X>
+                    <Y>0</Y>
+                    <Z>0</Z>
                   </ValueVector3>
                   <Value2D />
                 </Key>
@@ -1816,11 +1816,11 @@
             <Property AnimationType="Animated" Name="Position" Type="Vector3">
               <Keys>
                 <Key>
-                  <Time>0.0569395</Time>
+                  <Time>0</Time>
                   <ValueVector3>
-                    <X>0.1</X>
-                    <Y>0.1</Y>
-                    <Z>0.1</Z>
+                    <X>0</X>
+                    <Y>0</Y>
+                    <Z>0</Z>
                   </ValueVector3>
                   <Value2D />
                 </Key>

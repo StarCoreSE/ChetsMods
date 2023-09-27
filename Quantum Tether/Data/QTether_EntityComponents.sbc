@@ -1,0 +1,13 @@
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <EntityComponents>
+    <EntityComponent xsi:type="MyObjectBuilder_ModStorageComponentDefinition">
+      <Id>
+        <TypeId>ModStorageComponent</TypeId>
+        <SubtypeId>QuantumTether</SubtypeId>
+      </Id>
+      <RegisteredStorageGuids>
+        <guid>47114A7D-B546-4C05-9E6E-2DFE3449E176</guid>
+      </RegisteredStorageGuids>
+    </EntityComponent>
+  </EntityComponents>
+</Definitions>

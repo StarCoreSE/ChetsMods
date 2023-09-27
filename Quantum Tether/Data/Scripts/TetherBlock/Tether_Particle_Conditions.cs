@@ -33,6 +33,8 @@ namespace InventoryTether.Particle
             {
                 case "working": // only shows particle if block is functional+enabled+powered
                     return new ParticleOnWorking(this, particleSubtypeId, dummy.Matrix);
+                case "enablednonworking":
+                    return new ParticleOnEnabled(this, particleSubtypeId, dummy.Matrix);
             }
 
             return new ParticleBase(this, particleSubtypeId, dummy.Matrix);
@@ -96,11 +98,46 @@ namespace InventoryTether.Particle
                 return;
 
             bool currentState = Effect != null;
-            bool targetState = Block.IsWorking;
+            bool targetState = Block.Enabled && Block.IsWorking;
 
             if(targetState != currentState)
             {
                 if(targetState)
+                {
+                    Effect = SpawnParticle();
+                }
+                else
+                {
+                    Effect.Stop();
+                    Effect = null;
+                }
+            }
+        }
+    }
+
+    public class ParticleOnEnabled : ParticleBase, IUpdateable
+    {
+        public readonly IMyFunctionalBlock Block;
+
+        public ParticleOnEnabled(StandardParticleGamelogic gamelogic, string subtypeId, MatrixD localMatrix) : base(gamelogic, subtypeId, localMatrix)
+        {
+            Block = gamelogic.Entity as IMyFunctionalBlock;
+            if (Block == null)
+                throw new Exception($"{GetType().Name}: Unsupported block type, needs on/off");
+        }
+
+        // frequency dictated by the gamelogic, currently it's every 10th tick (approx, they're spread out to run as few per tick as possible)
+        public void Update()
+        {
+            if (Block == null)
+                return;
+
+            bool currentState = Effect != null;
+            bool targetState = Block.Enabled && !Block.IsWorking;
+
+            if (targetState != currentState)
+            {
+                if (targetState)
                 {
                     Effect = SpawnParticle();
                 }
