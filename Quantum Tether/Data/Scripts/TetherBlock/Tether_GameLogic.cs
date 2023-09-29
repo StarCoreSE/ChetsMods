@@ -24,6 +24,7 @@ using static VRageRender.MyBillboard;
 using VRage;
 using Sandbox.ModAPI.Interfaces.Terminal;
 using System.Net;
+using VRage.Game.VisualScripting;
 
 namespace InventoryTether
 {
@@ -383,6 +384,7 @@ namespace InventoryTether
         private List<IMyCharacter> NearPlayers()
         {
             List<IMyCharacter> nearPlayers = new List<IMyCharacter>();
+            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
 
             if (InventoryTetherBlock != null)
             {
@@ -395,7 +397,22 @@ namespace InventoryTether
                     IMyCharacter player = entity as IMyCharacter;
                     if (player != null && player.IsPlayer && bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
                     {
-                        nearPlayers.Add(player);
+                        MyAPIGateway.Players.GetPlayers(actualPlayers);
+
+                        foreach ( IMyPlayer realplayer in actualPlayers)
+                        {
+                            if (realplayer.Character == player)
+                            {
+                                var playerRelation = InventoryTetherBlock.GetUserRelationToOwner(realplayer.IdentityId);
+
+                                if (playerRelation.IsFriendly())
+                                {
+                                    nearPlayers.Add(player);
+                                }
+                                else
+                                    continue;
+                            }
+                        }
                     }
                 }
             }
