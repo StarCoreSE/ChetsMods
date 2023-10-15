@@ -8,7 +8,7 @@
             </Id>
             <DisplayName>Quantum Tether</DisplayName>
             <Icon>Textures\GUI\Icons\Quantom_Tether.dds</Icon>
-            <Description>Uses [Insert Technobabble] to Automatically fill your inventory with 1-10 of each basic building resource, within a 250 meter radius</Description>
+            <Description>The Quantum Tether uses [Inset Technobabble] to Automagically keep player inventories within range stocked with Components</Description>
             <CubeSize>Large</CubeSize>
             <BlockTopology>TriangleMesh</BlockTopology>
             <Size x="1" y="1" z="1" />

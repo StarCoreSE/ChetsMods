@@ -25,6 +25,7 @@ using VRage;
 using Sandbox.ModAPI.Interfaces.Terminal;
 using System.Net;
 using VRage.Game.VisualScripting;
+using System.Runtime.InteropServices;
 
 namespace InventoryTether
 {
@@ -44,10 +45,15 @@ namespace InventoryTether
         private float MaxBlockRange = 500;
         private float BlockRange;
 
-         int syncCountdown;
+        private float MinStockAmount = 1;
+        private float MaxStockAmount = 50;
+        private float StockAmount;
+
+        private bool ShowArea = false;
+
+        int syncCountdown;
 
         public const int SettingsChangedCountdown = (60 * 1) / 10;
-        private MyFixedPoint NumberToStock = 10;
 
         private string EmissiveMaterialName = "Emissive";
         private bool EmissiveSet = false;
@@ -79,6 +85,45 @@ namespace InventoryTether
             }
         }
 
+        public float SettingsStockAmount
+        {
+            get { return Settings.StockAmount; }
+            set
+            {
+                Settings.StockAmount = MathHelper.Clamp((int)Math.Floor(value), MinStockAmount, MaxStockAmount);
+
+                SettingsChanged();
+
+                if (Settings.BlockRange < 1)
+                {
+                    NeedsUpdate = MyEntityUpdateEnum.NONE;
+                }
+                else
+                {
+                    if ((NeedsUpdate & MyEntityUpdateEnum.EACH_10TH_FRAME) == 0)
+                        NeedsUpdate |= MyEntityUpdateEnum.EACH_10TH_FRAME;
+                }
+
+                InventoryTetherBlock?.Components?.Get<MyResourceSinkComponent>()?.Update();
+            }
+        }
+
+        public bool SettingsShowArea
+        {
+            get { return Settings.ShowArea; }
+            set
+            {
+                Settings.ShowArea = value;
+
+                SettingsChanged();
+
+                if ((NeedsUpdate & MyEntityUpdateEnum.EACH_10TH_FRAME) == 0)
+                    NeedsUpdate |= MyEntityUpdateEnum.EACH_10TH_FRAME;
+
+                InventoryTetherBlock?.Components?.Get<MyResourceSinkComponent>()?.Update();
+            }
+        }
+
         #region Overrides
         public override void Init(MyObjectBuilder_EntityBase objectBuilder)
         {
@@ -99,7 +144,7 @@ namespace InventoryTether
 
                 InventoryTetherBlock.Enabled = false;
 
-                SetupTerminalControls<IMyCollector>(MinBlockRange, MaxBlockRange);
+                SetupTerminalControls<IMyCollector>(MinBlockRange, MaxBlockRange, MinStockAmount, MaxStockAmount);
 
                 InventoryTetherBlockDef = (MyPoweredCargoContainerDefinition)InventoryTetherBlock.SlimBlock.BlockDefinition;
 
@@ -114,6 +159,14 @@ namespace InventoryTether
                 {
                     BlockRange = 250;
                     SettingsBlockRange = 250;
+                }
+                else
+                    BlockRange = SettingsBlockRange;
+
+                if (SettingsStockAmount <= 0)
+                {
+                    StockAmount = 10;
+                    SettingsStockAmount = 10;
                 }
                 else
                     BlockRange = SettingsBlockRange;
@@ -142,6 +195,24 @@ namespace InventoryTether
                     ScanPlayerInventory();
                     Sink.Update();
                     ForceUpdateCustomInfo();
+                }
+
+                if (SettingsShowArea && !MyAPIGateway.Utilities.IsDedicated)
+                {
+                    Vector3 pos = InventoryTetherBlock.GetPosition();
+                    var matrix = MatrixD.CreateWorld(pos);
+                    int wireDivRatio = 360 / 15;
+
+                    Color color = Color.DarkGray;
+                    if (InventoryTetherBlock.Enabled)
+                    {
+                        color = InventoryTetherBlock.IsWorking ? Color.LightGreen : Color.Yellow;
+                    }
+
+                    float radius = SettingsBlockRange / 2;
+                    float lineThickness = 0.15f + ((radius - 2.5f) / (250 - 2.5f)) * (1.5f - 0.15f);
+
+                    MySimpleObjectDraw.DrawTransparentSphere(ref matrix, SettingsBlockRange / 2, ref color, MySimpleObjectRasterizer.Wireframe, wireDivRatio, null, MyStringId.GetOrCompute("WeaponLaserIgnoreDepth"), lineThickness, -1, null, BlendTypeEnum.SDR, 1);
                 }
 
                 if (InventoryTetherBlock.IsWorking)
@@ -274,6 +345,8 @@ namespace InventoryTether
                 if (loadedSettings != null)
                 {
                     Settings.BlockRange = loadedSettings.BlockRange;
+                    Settings.StockAmount = loadedSettings.StockAmount;
+                    Settings.ShowArea = loadedSettings.ShowArea;
                     return true;
                 }
             }
@@ -355,14 +428,14 @@ namespace InventoryTether
                         foreach (MyPhysicalInventoryItem item in playerInventory.GetItems())
                         {
                             MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
-                            if (component != null && component.SubtypeName == subtype && item.Amount >= NumberToStock)
+                            if (component != null && component.SubtypeName == subtype && item.Amount >= (MyFixedPoint)StockAmount)
                             {
                                 //SetStatus($"Found: {subtype}", 2000, "Green");
                                 subtypeFound = true;
                                 itemStocked = true;
                                 break;
                             }
-                            else if (component != null && component.SubtypeName == subtype && item.Amount < NumberToStock)
+                            else if (component != null && component.SubtypeName == subtype && item.Amount < (MyFixedPoint)StockAmount)
                             {
                                 subtypeFound = true;
                                 itemStocked = false;
@@ -389,7 +462,7 @@ namespace InventoryTether
             if (InventoryTetherBlock != null)
             {
                 List<MyEntity> nearEntities = new List<MyEntity>();
-                var bound = new BoundingSphereD(InventoryTetherBlock.GetPosition(), BlockRange);
+                var bound = new BoundingSphereD(InventoryTetherBlock.GetPosition(), BlockRange / 2);
                 MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, nearEntities);
 
                 foreach (var entity in nearEntities)
@@ -424,7 +497,7 @@ namespace InventoryTether
         {
             var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
 
-            MyFixedPoint neededItemsNumber = NumberToStock - itemAmount;
+            MyFixedPoint neededItemsNumber = (MyFixedPoint)StockAmount - itemAmount;
 
             bool invDisconnect = false;
             var gridHasComp = ScanGridInventoryForItem(subtype, neededItemsNumber, out invDisconnect);
@@ -568,7 +641,7 @@ namespace InventoryTether
         }
 
         #region Terminal Controls
-        static void SetupTerminalControls<T>(float minBlockRange, float maxBlockRange)
+        static void SetupTerminalControls<T>(float minBlockRange, float maxBlockRange, float minStockAmount, float maxStockAmount)
         {
             var mod = InventoryTetherMod.Instance;
 
@@ -577,17 +650,44 @@ namespace InventoryTether
 
             mod.ControlsCreated = true;
 
-            var tetherRangeSlider = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSlider, IMyCollector>("QuanTeth" + "Block Range");
+            var tetherRangeSlider = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSlider, IMyCollector>("QuanTeth" + "BlockRange");
             tetherRangeSlider.Title = MyStringId.GetOrCompute("Range");
-            tetherRangeSlider.Tooltip = MyStringId.GetOrCompute("Adjusts Range at which the Tether operates");
+            tetherRangeSlider.Tooltip = MyStringId.GetOrCompute("Diameter of Operational Area centered on the Block");
             tetherRangeSlider.SetLimits(minBlockRange, maxBlockRange);
-            tetherRangeSlider.Writer = Control_Power_Writer;
+            tetherRangeSlider.Writer = Control_Range_Writer;
             tetherRangeSlider.Visible = Control_Visible;
             tetherRangeSlider.Getter = Control_Range_Getter;
             tetherRangeSlider.Setter = Control_Range_Setter;
-            tetherRangeSlider.Enabled = Control_Visible; ;
+            tetherRangeSlider.Enabled = Control_Visible;
             tetherRangeSlider.SupportsMultipleBlocks = true;
             MyAPIGateway.TerminalControls.AddControl<T>(tetherRangeSlider);
+
+            var tetherStockAmount = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSlider, IMyCollector>("QuanTeth" + "StockAmount");
+            tetherStockAmount.Title = MyStringId.GetOrCompute("Amount to Stock");
+            tetherStockAmount.Tooltip = MyStringId.GetOrCompute("How many of Each Componenet to Stock");
+            tetherStockAmount.SetLimits(minStockAmount, maxStockAmount);
+            tetherStockAmount.Writer = Control_Stock_Writer;
+            tetherStockAmount.Visible = Control_Visible;
+            tetherStockAmount.Getter = Control_Stock_Getter;
+            tetherStockAmount.Setter = Control_Stock_Setter;
+            tetherStockAmount.Enabled = Control_Visible;
+            tetherStockAmount.SupportsMultipleBlocks = true;
+            MyAPIGateway.TerminalControls.AddControl<T>(tetherStockAmount);
+
+            var tetherControlSeperator = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSeparator, IMyCollector>("");
+            tetherControlSeperator.Visible = Control_Visible;
+            tetherControlSeperator.SupportsMultipleBlocks = true;
+            MyAPIGateway.TerminalControls.AddControl<IMyGyro>(tetherControlSeperator);
+
+            var tetherShowArea = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlCheckbox, IMyCollector>("QuanTeth" + "ShowArea");
+            tetherShowArea.Title = MyStringId.GetOrCompute("Show Area");
+            tetherShowArea.Tooltip = MyStringId.GetOrCompute("Toggles a Visual of the Operational Area");         
+            tetherShowArea.Visible = Control_Visible;          
+            tetherShowArea.Getter = Control_ShowArea_Getter;
+            tetherShowArea.Setter = Control_ShowArea_Setter;
+            tetherShowArea.Enabled = Control_Visible;
+            tetherShowArea.SupportsMultipleBlocks = true;
+            MyAPIGateway.TerminalControls.AddControl<IMyCollector>(tetherShowArea);
         }
 
         static InventoryTetherLogic GetLogic(IMyTerminalBlock block) => block?.GameLogic?.GetAs<InventoryTetherLogic>();
@@ -612,7 +712,7 @@ namespace InventoryTether
             logic.SettingsBlockRange = logic.BlockRange;
         }
 
-        static void Control_Power_Writer(IMyTerminalBlock block, StringBuilder writer)
+        static void Control_Range_Writer(IMyTerminalBlock block, StringBuilder writer)
         {
             var logic = GetLogic(block);
             if (logic != null)
@@ -620,6 +720,45 @@ namespace InventoryTether
                 float value = logic.BlockRange;
                 writer.Append(Math.Round(value, 0, MidpointRounding.ToEven)).Append("m");
             }
+        }
+
+        static float Control_Stock_Getter(IMyTerminalBlock block)
+        {
+            var logic = GetLogic(block);
+            return logic != null ? logic.StockAmount : 1f;
+        }
+
+        static void Control_Stock_Setter(IMyTerminalBlock block, float value)
+        {
+            var logic = GetLogic(block);
+            if (logic != null)
+                logic.StockAmount = MathHelper.Clamp(value, 1f, 50f);
+            logic.StockAmount = (float)Math.Round(logic.StockAmount, 0);
+            logic.SettingsStockAmount = logic.StockAmount;
+        }
+
+        static void Control_Stock_Writer(IMyTerminalBlock block, StringBuilder writer)
+        {
+            var logic = GetLogic(block);
+            if (logic != null)
+            {
+                float value = logic.StockAmount;
+                writer.Append(Math.Round(value, 0, MidpointRounding.ToEven));
+            }
+        }
+
+        static bool Control_ShowArea_Getter(IMyTerminalBlock block)
+        {
+            var logic = GetLogic(block);
+            return logic != null ? logic.ShowArea : false;
+        }
+
+        static void Control_ShowArea_Setter(IMyTerminalBlock block, bool value)
+        {
+            var logic = GetLogic(block);
+            if (logic != null)
+                logic.ShowArea = value;
+                logic.Settings.ShowArea = logic.ShowArea;
         }
         #endregion
     }
