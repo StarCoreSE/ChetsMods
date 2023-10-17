@@ -297,7 +297,7 @@ namespace InventoryTether
             }
             else
             {
-                float powerPrecentage = InventoryTetherBlockDef.RequiredPowerInput = 100f;
+                float powerPrecentage = InventoryTetherBlockDef.RequiredPowerInput = 50f;
                 float sliderValue = BlockRange;
 
                 float ratio = sliderValue / MaxBlockRange;
