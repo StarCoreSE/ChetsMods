@@ -1,31 +1,29 @@
 ﻿using System;
+using System.Net;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
-using Sandbox.Game.EntityComponents;
-using Sandbox.ModAPI;
-using Sandbox.Common.ObjectBuilders;
-using VRage.Game.Components;
-using VRage.ModAPI;
-using VRage.ObjectBuilders;
-using VRage.Game.ModAPI;
-using VRage.Game;
-using VRageMath;
 using Sandbox.Game.Entities;
-using VRage.Game.Entity;
-using VRage.Game.Components.Interfaces;
+using Sandbox.Game.EntityComponents;
 using Sandbox.Game.GUI;
 using Sandbox.Game;
 using Sandbox.Definitions;
+using Sandbox.ModAPI;
+using Sandbox.Common.ObjectBuilders;
+using Sandbox.ModAPI.Interfaces.Terminal;
+using VRage;
+using VRageMath;
+using VRage.Game;
+using VRage.Game.ModAPI;
+using VRage.Game.Components;
+using VRage.Game.Components.Interfaces;
+using VRage.Game.Entity;
+using VRage.ModAPI;
+using VRage.ObjectBuilders;
 using VRage.Utils;
 using InventoryTether.Particle;
 using static VRageRender.MyBillboard;
-using VRage;
-using Sandbox.ModAPI.Interfaces.Terminal;
-using System.Net;
-using VRage.Game.VisualScripting;
-using System.Runtime.InteropServices;
 
 namespace InventoryTether
 {
@@ -34,6 +32,7 @@ namespace InventoryTether
     {
         private IMyCollector InventoryTetherBlock;
         private IMyHudNotification NotifStatus = null;
+        private IMyHudNotification NotifNoneStatus = null;
 
         public MyPoweredCargoContainerDefinition InventoryTetherBlockDef;
         public TetherBlockSettings Settings = new TetherBlockSettings();
@@ -50,6 +49,7 @@ namespace InventoryTether
         private float StockAmount;
 
         private bool ShowArea = false;
+        private bool HardCap = false;
 
         int syncCountdown;
 
@@ -124,6 +124,22 @@ namespace InventoryTether
             }
         }
 
+        public bool SettingsHardCap
+        {
+            get { return Settings.HardCap; }
+            set
+            {
+                Settings.HardCap = value;
+
+                SettingsChanged();
+
+                if ((NeedsUpdate & MyEntityUpdateEnum.EACH_10TH_FRAME) == 0)
+                    NeedsUpdate |= MyEntityUpdateEnum.EACH_10TH_FRAME;
+
+                InventoryTetherBlock?.Components?.Get<MyResourceSinkComponent>()?.Update();
+            }
+        }
+
         #region Overrides
         public override void Init(MyObjectBuilder_EntityBase objectBuilder)
         {
@@ -171,6 +187,16 @@ namespace InventoryTether
                 else
                     BlockRange = SettingsBlockRange;
 
+                if (SettingsHardCap != HardCap)
+                {
+                    HardCap = SettingsHardCap;
+                }
+
+                if (SettingsShowArea != ShowArea)
+                {
+                    ShowArea = SettingsShowArea;
+                }
+
                 if (InventoryTetherBlock.CustomData.Equals(""))
                 {
                     string listAsString = string.Join(Environment.NewLine, defaultSubtypes);
@@ -197,46 +223,8 @@ namespace InventoryTether
                     ForceUpdateCustomInfo();
                 }
 
-                if (SettingsShowArea && !MyAPIGateway.Utilities.IsDedicated)
-                {
-                    Vector3 pos = InventoryTetherBlock.GetPosition();
-                    var matrix = MatrixD.CreateWorld(pos);
-                    int wireDivRatio = 360 / 15;
-
-                    Color color = Color.DarkGray;
-                    if (InventoryTetherBlock.Enabled)
-                    {
-                        color = InventoryTetherBlock.IsWorking ? Color.LightGreen : Color.Yellow;
-                    }
-
-                    float radius = SettingsBlockRange / 2;
-                    float lineThickness = 0.15f + ((radius - 2.5f) / (250 - 2.5f)) * (1.5f - 0.15f);
-
-                    MySimpleObjectDraw.DrawTransparentSphere(ref matrix, SettingsBlockRange / 2, ref color, MySimpleObjectRasterizer.Wireframe, wireDivRatio, null, MyStringId.GetOrCompute("WeaponLaserIgnoreDepth"), lineThickness, -1, null, BlendTypeEnum.SDR, 1);
-                }
-
-                if (InventoryTetherBlock.IsWorking)
-                {
-                    if (!EmissiveSet)
-                    {
-                        InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.DeepSkyBlue, 0.75f);
-                        EmissiveSet = true;
-                    }
-                    // No action needed for EmissiveSet = true, just return
-                    return;
-                }
-
-                if (!InventoryTetherBlock.Enabled)
-                {
-                    InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Black, 100f);
-                    EmissiveSet = false;
-                }
-                else // InventoryTetherBlock.Enabled == true
-                {
-                    InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Yellow, 0.75f);
-                    EmissiveSet = false;
-                }
-
+                CheckShowArea();
+                SetEmissives();
             }
             catch (Exception e)
             {
@@ -286,6 +274,18 @@ namespace InventoryTether
             NotifStatus.Show();
         }
 
+        private void SetNoneStatus(string text, int aliveTime = 300, string font = MyFontEnum.Green)
+        {
+            if (NotifNoneStatus == null)
+                NotifNoneStatus = MyAPIGateway.Utilities.CreateNotification("", aliveTime, font);
+
+            NotifNoneStatus.Hide();
+            NotifNoneStatus.Font = font;
+            NotifNoneStatus.Text = text;
+            NotifNoneStatus.AliveTime = aliveTime;
+            NotifNoneStatus.Show();
+        }
+
         private float RequiredInput()
         {
             if (!InventoryTetherBlock.IsWorking)
@@ -324,6 +324,54 @@ namespace InventoryTether
                     string customData = InventoryTetherBlock.CustomData;
                     targetSubtypes = customData.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
                 }
+            }
+        }
+
+        private void CheckShowArea()
+        {
+            if (SettingsShowArea && !MyAPIGateway.Utilities.IsDedicated)
+            {
+                Vector3 pos = InventoryTetherBlock.GetPosition();
+                var matrix = MatrixD.CreateWorld(pos);
+                int wireDivRatio = 360 / 15;
+
+                Color color = Color.DarkGray;
+                if (InventoryTetherBlock.Enabled)
+                {
+                    color = InventoryTetherBlock.IsWorking ? Color.LightGreen : Color.Yellow;
+                }
+
+                float radius = SettingsBlockRange / 2;
+                float lineThickness = 0.15f + ((radius - 2.5f) / (250 - 2.5f)) * (1.5f - 0.15f);
+
+                MySimpleObjectDraw.DrawTransparentSphere(ref matrix, SettingsBlockRange / 2, ref color, MySimpleObjectRasterizer.Wireframe, wireDivRatio, null, MyStringId.GetOrCompute("WeaponLaserIgnoreDepth"), lineThickness, -1, null, BlendTypeEnum.SDR, 1);
+            }
+            else
+                return;
+        }
+
+        private void SetEmissives()
+        {
+            if (InventoryTetherBlock.IsWorking)
+            {
+                if (!EmissiveSet)
+                {
+                    InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.DeepSkyBlue, 0.75f);
+                    EmissiveSet = true;
+                }
+                // No action needed for EmissiveSet = true, just return
+                return;
+            }
+
+            if (!InventoryTetherBlock.Enabled)
+            {
+                InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Black, 100f);
+                EmissiveSet = false;
+            }
+            else // InventoryTetherBlock.Enabled == true
+            {
+                InventoryTetherBlock.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Yellow, 0.75f);
+                EmissiveSet = false;
             }
         }
         #endregion
@@ -423,17 +471,26 @@ namespace InventoryTether
                     {
                         bool subtypeFound = false;
                         bool itemStocked = false;
+                        bool itemOverStocked = false;
                         MyFixedPoint itemAmount = 0;
+                        MyFixedPoint overstockItemAmount = 0;
 
                         foreach (MyPhysicalInventoryItem item in playerInventory.GetItems())
                         {
                             MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
-                            if (component != null && component.SubtypeName == subtype && item.Amount >= (MyFixedPoint)StockAmount)
+                            if (component != null && component.SubtypeName == subtype && item.Amount == (MyFixedPoint)StockAmount)
                             {
                                 //SetStatus($"Found: {subtype}", 2000, "Green");
                                 subtypeFound = true;
                                 itemStocked = true;
                                 break;
+                            }
+                            else if (component != null && component.SubtypeName == subtype && item.Amount > (MyFixedPoint)StockAmount && SettingsHardCap)
+                            {
+                                subtypeFound = true;
+                                itemOverStocked = true;
+                                itemStocked = true;
+                                overstockItemAmount = item.Amount - (MyFixedPoint)StockAmount;
                             }
                             else if (component != null && component.SubtypeName == subtype && item.Amount < (MyFixedPoint)StockAmount)
                             {
@@ -448,6 +505,10 @@ namespace InventoryTether
                         {
                             //SetStatus($"Missing: {subtype}", 2000, "Red");
                             AddMissingComponent(player, subtype, itemAmount);
+                        }
+                        else if (subtypeFound && itemOverStocked && HardCap)
+                        {
+                            RemoveExcessComponent(player, subtype, overstockItemAmount);
                         }
                     }
                 }
@@ -640,6 +701,52 @@ namespace InventoryTether
             return false;
         }
 
+        private void RemoveExcessComponent(IMyCharacter player, string subtype, MyFixedPoint overstockItemAmount)
+        {
+            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
+
+            if (CheckBlockForSpace(subtype, overstockItemAmount))
+            {
+                var playerInventory = player.GetInventory();
+                IMyInventory blockInventory = InventoryTetherBlock.GetInventory();
+
+                if (playerInventory.ContainItems((MyFixedPoint)StockAmount + overstockItemAmount, componentDefinition.Id))
+                {
+                    var inventoryItem = new MyObjectBuilder_InventoryItem()
+                    {
+                        Amount = overstockItemAmount,
+                        Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
+                    };
+
+                    playerInventory.RemoveItemsOfType(inventoryItem.Amount, componentDefinition.Id);
+                    blockInventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
+                }
+                else
+                    Log.Error($"Item [{subtype}] No Longer Exists in [{player.DisplayName}]'s Inventory");
+            }
+            else
+                SetNoneStatus("No Space in Tether Block!", 2000, "Red");
+        }
+
+        private bool CheckBlockForSpace(string subtype, MyFixedPoint overstockItemAmount)
+        {
+            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
+
+            IMyInventory blockInventory = InventoryTetherBlock.GetInventory();
+
+            if (componentDefinition != null)
+            {
+                if (blockInventory.CanItemsBeAdded(overstockItemAmount, componentDefinition.Id))
+                {
+                    return true;
+                }
+                else
+                    return false;
+            }
+
+            return false;
+        }    
+
         #region Terminal Controls
         static void SetupTerminalControls<T>(float minBlockRange, float maxBlockRange, float minStockAmount, float maxStockAmount)
         {
@@ -681,13 +788,23 @@ namespace InventoryTether
 
             var tetherShowArea = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlCheckbox, IMyCollector>("QuanTeth" + "ShowArea");
             tetherShowArea.Title = MyStringId.GetOrCompute("Show Area");
-            tetherShowArea.Tooltip = MyStringId.GetOrCompute("Toggles a Visual of the Operational Area");         
-            tetherShowArea.Visible = Control_Visible;          
+            tetherShowArea.Tooltip = MyStringId.GetOrCompute("Toggles a Visual of the Operational Area");
+            tetherShowArea.Visible = Control_Visible;
             tetherShowArea.Getter = Control_ShowArea_Getter;
             tetherShowArea.Setter = Control_ShowArea_Setter;
             tetherShowArea.Enabled = Control_Visible;
             tetherShowArea.SupportsMultipleBlocks = true;
             MyAPIGateway.TerminalControls.AddControl<IMyCollector>(tetherShowArea);
+
+            var tetherHardCap = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlCheckbox, IMyCollector>("QuanTeth" + "HardCap");
+            tetherHardCap.Title = MyStringId.GetOrCompute("Hard Cap");
+            tetherHardCap.Tooltip = MyStringId.GetOrCompute("Items in Inventory over Stock Number gets shifted to Tether Block");
+            tetherHardCap.Visible = Control_Visible;
+            tetherHardCap.Getter = Control_HardCap_Getter;
+            tetherHardCap.Setter = Control_HardCap_Setter;
+            tetherHardCap.Enabled = Control_Visible;
+            tetherHardCap.SupportsMultipleBlocks = true;
+            MyAPIGateway.TerminalControls.AddControl<IMyCollector>(tetherHardCap);
         }
 
         static InventoryTetherLogic GetLogic(IMyTerminalBlock block) => block?.GameLogic?.GetAs<InventoryTetherLogic>();
@@ -760,11 +877,25 @@ namespace InventoryTether
                 logic.ShowArea = value;
                 logic.Settings.ShowArea = logic.ShowArea;
         }
+
+        static bool Control_HardCap_Getter(IMyTerminalBlock block)
+        {
+            var logic = GetLogic(block);
+            return logic != null ? logic.HardCap : false;
+        }
+
+        static void Control_HardCap_Setter(IMyTerminalBlock block, bool value)
+        {
+            var logic = GetLogic(block);
+            if (logic != null)
+                logic.HardCap = value;
+            logic.Settings.HardCap = logic.HardCap;
+        }
         #endregion
     }
 
     [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether")]
-    public class ParticleOnReactor : StandardParticleGamelogic
+    public class QuantumTetherParticle : StandardParticleGamelogic
     {
         protected override void Setup()
         {

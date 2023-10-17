@@ -14,7 +14,7 @@ namespace InventoryTether
         [ProtoMember(3)]
         public bool ShowArea;
 
-        /*[ProtoMember(3)]
-        public bool SiegeModeActivated;*/
+        [ProtoMember(4)]
+        public bool HardCap;
     }
 }
