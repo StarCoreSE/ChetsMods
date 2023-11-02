@@ -815,7 +815,7 @@ namespace InventoryTether
             var tetherControlSeperator = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlSeparator, IMyCollector>("");
             tetherControlSeperator.Visible = Control_Visible;
             tetherControlSeperator.SupportsMultipleBlocks = true;
-            MyAPIGateway.TerminalControls.AddControl<IMyGyro>(tetherControlSeperator);
+            MyAPIGateway.TerminalControls.AddControl<IMyCollector>(tetherControlSeperator);
 
             var tetherShowArea = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlCheckbox, IMyCollector>("QuanTeth" + "ShowArea");
             tetherShowArea.Title = MyStringId.GetOrCompute("Show Area");
