@@ -633,55 +633,63 @@ namespace InventoryTether
         private bool ScanGridInventoryForItem(string subtype, MyFixedPoint neededItemsNumber, out bool invDisconnect)
         {
             MyCubeGrid tetherGrid = (MyCubeGrid)InventoryTetherBlock.CubeGrid;
-            var tetherGridFatblocks = tetherGrid.GetFatBlocks();
+            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
+            var subgroups = new List<IMyCubeGrid>();
+            gridGroup.GetGrids(subgroups);
 
             bool subtypeFound = false;
 
             if (tetherGrid != null)
             {
-                foreach (var block in tetherGridFatblocks)
+                foreach (var grid in subgroups)
                 {
-                    MyInventory blockInv = block.GetInventory();
+                    var castedGrid = (MyCubeGrid)grid;
+                    var gridFatblocks = castedGrid.GetFatBlocks();
 
-                    if (blockInv == null)
+                    foreach (var block in gridFatblocks)
                     {
-                        // Fatblocks without an Inventory get skipped
-                        continue;
-                    }
+                        MyInventory blockInv = block.GetInventory();
 
-                    foreach (MyPhysicalInventoryItem item in blockInv.GetItems())
-                    {
-                        if (item.Content == null)
+                        if (blockInv == null)
                         {
-                            //SetStatus("Item or Content is null", 2000, "Red");
+                            // Fatblocks without an Inventory get skipped
                             continue;
                         }
 
-                        MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
-
-                        if (component != null && component.SubtypeName == subtype && item.Amount >= neededItemsNumber)
+                        foreach (MyPhysicalInventoryItem item in blockInv.GetItems())
                         {
-                            //SetStatus($"Found: {subtype}", 2000, "Green");
-
-                            IMyInventory tetherIMyInv = InventoryTetherBlock.GetInventory();
-                            IMyInventory blockIMyInv = block.GetInventory();
-
-                            if (tetherIMyInv.IsConnectedTo(blockIMyInv))
+                            if (item.Content == null)
                             {
-                                subtypeFound = true;
-                                invDisconnect = false;
-                                return true;
+                                //SetStatus("Item or Content is null", 2000, "Red");
+                                continue;
                             }
-                            else
+
+                            MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
+
+                            if (component != null && component.SubtypeName == subtype && item.Amount >= neededItemsNumber)
                             {
-                                //SetStatus($"Inventory Not Connected: ({InventoryTetherBlock.DisplayNameText} to {block.DisplayNameText})", 2000, "Red");
-                                subtypeFound = false;
-                                invDisconnect = true;
-                                return false;
+                                //SetStatus($"Found: {subtype}", 2000, "Green");
+
+                                IMyInventory tetherIMyInv = InventoryTetherBlock.GetInventory();
+                                IMyInventory blockIMyInv = block.GetInventory();
+
+                                if (tetherIMyInv.IsConnectedTo(blockIMyInv))
+                                {
+                                    subtypeFound = true;
+                                    invDisconnect = false;
+                                    return true;
+                                }
+                                else
+                                {
+                                    //SetStatus($"Inventory Not Connected: ({InventoryTetherBlock.DisplayNameText} to {block.DisplayNameText})", 2000, "Red");
+                                    subtypeFound = false;
+                                    invDisconnect = true;
+                                    return false;
+                                }
                             }
                         }
                     }
-                }             
+                }
             }         
 
             if (!subtypeFound || tetherGrid == null)
@@ -698,35 +706,43 @@ namespace InventoryTether
         private bool RemoveCompFromGrid(string subtype, MyFixedPoint neededItemsNumber, bool gridHasComp)
         {
             MyCubeGrid tetherGrid = (MyCubeGrid)InventoryTetherBlock.CubeGrid;
-            var tetherGridFatblocks = tetherGrid.GetFatBlocks();
+            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
+            var subgroups = new List<IMyCubeGrid>();
+            gridGroup.GetGrids(subgroups);
 
             if (tetherGrid != null)
             {
                 if (gridHasComp)
                 {
-                    foreach (var block in tetherGridFatblocks)
+                    foreach (var grid in subgroups)
                     {
-                        MyInventory blockInv = block.GetInventory();
+                        var castedGrid = (MyCubeGrid)grid;
+                        var gridFatblocks = castedGrid.GetFatBlocks();
 
-                        if (blockInv == null)
+                        foreach (var block in gridFatblocks)
                         {
-                            continue;
-                        }
+                            MyInventory blockInv = block.GetInventory();
 
-                        foreach (MyPhysicalInventoryItem item in blockInv.GetItems())
-                        {
-                            MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
-                            if (component != null && component.SubtypeName == subtype)
+                            if (blockInv == null)
                             {
-                                blockInv.RemoveItemsOfType(neededItemsNumber, item.Content);
-                                //SetStatus($"Removed: {subtype}", 2000, "White");
-                                return true;
+                                continue;
+                            }
+
+                            foreach (MyPhysicalInventoryItem item in blockInv.GetItems())
+                            {
+                                MyObjectBuilder_Component component = item.Content as MyObjectBuilder_Component;
+                                if (component != null && component.SubtypeName == subtype)
+                                {
+                                    blockInv.RemoveItemsOfType(neededItemsNumber, item.Content);
+                                    //SetStatus($"Removed: {subtype}", 2000, "White");
+                                    return true;
+                                }
                             }
                         }
                     }
                 }
-                //SetStatus($"Grid doesn't have: {subtype}", 2000, "Red");
-                return false;
+                    //SetStatus($"Grid doesn't have: {subtype}", 2000, "Red");
+                    return false;
             }            
 
             return false;
