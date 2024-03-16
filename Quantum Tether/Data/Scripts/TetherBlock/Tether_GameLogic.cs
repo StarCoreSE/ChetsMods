@@ -147,10 +147,7 @@ namespace InventoryTether
 
         #region Overrides
         public override void Init(MyObjectBuilder_EntityBase objectBuilder)
-        {
-            if (!MyAPIGateway.Session.IsServer)
-                return;
-
+        {            
             NeedsUpdate |= MyEntityUpdateEnum.BEFORE_NEXT_FRAME;
         }
 
@@ -171,6 +168,9 @@ namespace InventoryTether
 
                 SetupTerminalControls<IMyCollector>(MinBlockRange, MaxBlockRange, MinStockAmount, MaxStockAmount);
 
+                if (!MyAPIGateway.Session.IsServer)
+                    return;
+                    
                 InventoryTetherBlockDef = (MyPoweredCargoContainerDefinition)InventoryTetherBlock.SlimBlock.BlockDefinition;
 
                 Sink = InventoryTetherBlock.Components.Get<MyResourceSinkComponent>();
