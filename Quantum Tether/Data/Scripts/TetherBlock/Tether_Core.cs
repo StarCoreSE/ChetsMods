@@ -261,70 +261,37 @@ namespace InventoryTether
             NotifNoneStatus.Show();
         }
 
-        private List<T> GetNearbyEntities<T>(Func<MyEntity, T> entitySelector) where T : class
-        {
-            var nearbyEntities = new List<T>();
-            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
-
-            if (Block != null)
-            {
-                var entities = new List<MyEntity>();
-                MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, entities);
-
-                foreach (var entity in entities)
-                {
-                    var selectedEntity = entitySelector(entity);
-                    if (selectedEntity != null)
-                    {
-                        nearbyEntities.Add(selectedEntity);
-                    }
-                }
-            }
-
-            return nearbyEntities;
-        }
-
         private List<IMyCharacter> NearPlayers()
         {
-            return GetNearbyEntities(entity =>
+            var nearbyPlayers = new List<IMyCharacter>();
+            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
+
+            if (Block == null) 
+                return nearbyPlayers;
+
+            var entities = new List<MyEntity>();
+            MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, entities);
+
+            foreach (var entity in entities)
             {
                 var player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
-                    var controllingIdentityId = player.ControllerInfo?.ControllingIdentityId ?? 0;
+                    var controllingIdentityId = player.ControllerInfo.ControllingIdentityId;
                     if (controllingIdentityId != 0)
                     {
                         var relation = Block.GetUserRelationToOwner(controllingIdentityId);
                         if (relation.IsFriendly())
                         {
                             Log.Info($"Valid Player Detected: {player.DisplayName}");
-                            return player;
+                            nearbyPlayers.Add(player);
                         }
                     }
                 }
-                return null;
-            });
+            }
+
+            return nearbyPlayers;
         }
-
-        /*private List<IMyCubeGrid> NearGrids()
-        {
-            return GetNearbyEntities(entity =>
-            {
-                var grid = entity as IMyCubeGrid;
-                if (grid != null)
-                {
-                    var gridOwners = grid.BigOwners;
-                    var topOwner = gridOwners[0];
-                    var playerRelation = Block.GetUserRelationToOwner(topOwner);
-
-                    if (playerRelation.IsFriendly())
-                    {
-                        return grid;
-                    }
-                }
-                return null;
-            });
-        }*/
 
         public bool IsSmallGrid()
         {
