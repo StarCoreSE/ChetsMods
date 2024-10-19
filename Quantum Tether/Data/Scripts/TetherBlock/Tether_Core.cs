@@ -263,8 +263,7 @@ namespace InventoryTether
 
         private List<IMyCharacter> NearPlayers()
         {
-            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();
-            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
+            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();           
 
             if (Block == null) 
                 return nearbyPlayers;
@@ -272,6 +271,8 @@ namespace InventoryTether
             var entities = new List<MyEntity>();
             var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
             MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, entities);
+
+            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
             MyAPIGateway.Players.GetPlayers(actualPlayers);
 
             foreach (var entity in entities)
@@ -279,17 +280,23 @@ namespace InventoryTether
                 IMyCharacter player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
+                    Log.Info($"Player Is Real: {player.DisplayName}");
                     if (bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
                     {
+                        Log.Info($"Player In Bounds: {player.DisplayName}");
                         foreach (IMyPlayer realplayer in actualPlayers)
                         {
+                            Log.Info($"Processing Player in ActualPlayers: {realplayer.DisplayName}");
                             if (realplayer.Character == player)
                             {
+                                Log.Info($"Player.Character was equal to Player: {realplayer.DisplayName}");
+
                                 var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
+                                Log.Info($"Player: {player.DisplayName}, Relation: {playerRelation}, Block Owner: {Block.OwnerId}");
 
                                 if (playerRelation.IsFriendly())
                                 {
-                                    Log.Info($"Valid Player Detected: {player.DisplayName}");
+                                    Log.Info($"Valid Player: {player.DisplayName}");
                                     nearbyPlayers.Add(player);
                                 }
                                 else
