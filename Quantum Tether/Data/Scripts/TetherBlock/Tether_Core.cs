@@ -266,7 +266,7 @@ namespace InventoryTether
             NotifNoneStatus.Show();
         }
 
-        private List<T> GetNearbyEntities<T>(Func<MyEntity, List<T>> entitySelector) where T : class
+        private List<T> GetNearbyEntities<T>(Func<MyEntity, T> entitySelector) where T : class
         {
             var nearbyEntities = new List<T>();
             var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
@@ -278,10 +278,10 @@ namespace InventoryTether
 
                 foreach (var entity in entities)
                 {
-                    var selectedEntities = entitySelector(entity);
-                    if (selectedEntities != null)
+                    var selectedEntity = entitySelector(entity);
+                    if (selectedEntity != null)
                     {
-                        nearbyEntities.AddRange(selectedEntities);
+                        nearbyEntities.Add(selectedEntity);
                     }
                 }
             }
@@ -291,24 +291,22 @@ namespace InventoryTether
 
         private List<IMyCharacter> NearPlayers()
         {
-            var actualPlayers = new List<IMyPlayer>();
-            MyAPIGateway.Players.GetPlayers(actualPlayers);
-
             return GetNearbyEntities(entity =>
             {
-                var nearbyPlayers = new List<IMyCharacter>();
                 var player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
-                    foreach (var realplayer in actualPlayers)
+                    var playerIdentity = MyAPIGateway.Players.TryGetIdentityId(player.ControllerInfo.ControllingIdentityId);
+                    if (playerIdentity != null)
                     {
-                        if (realplayer.Character == player && Block.GetUserRelationToOwner(realplayer.IdentityId).IsFriendly())
+                        var relation = Block.GetUserRelationToOwner(playerIdentity.IdentityId);
+                        if (relation.IsFriendly())
                         {
-                            nearbyPlayers.Add(player);
+                            return player; 
                         }
                     }
                 }
-                return nearbyPlayers;
+                return null;
             });
         }
 
