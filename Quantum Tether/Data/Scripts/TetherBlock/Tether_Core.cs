@@ -287,17 +287,17 @@ namespace InventoryTether
                         foreach (IMyPlayer realplayer in actualPlayers)
                         {
                             Log.Info($"Processing Player in ActualPlayers: {realplayer.DisplayName}");
-                            if (realplayer.Character == player)
+                            if(realplayer.Character?.EntityId == player.EntityId)
                             {
                                 Log.Info($"Player.Character was equal to Player: {realplayer.DisplayName}");
 
                                 var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
-                                Log.Info($"Player: {player.DisplayName}, Relation: {playerRelation}, Block Owner: {Block.OwnerId}");
+                                Log.Info($"Player: {realplayer.DisplayName}, Relation: {playerRelation}, Block Owner: {Block.OwnerId}");
 
                                 if (playerRelation.IsFriendly())
                                 {
-                                    Log.Info($"Valid Player: {player.DisplayName}");
-                                    nearbyPlayers.Add(player);
+                                    Log.Info($"Valid Player: {realplayer.DisplayName}");
+                                    nearbyPlayers.Add(realplayer.Character);
                                 }
                                 else
                                     continue;
