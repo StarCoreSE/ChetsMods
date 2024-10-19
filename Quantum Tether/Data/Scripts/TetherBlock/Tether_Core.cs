@@ -82,11 +82,6 @@ namespace InventoryTether
                 {
                     _targetItems = value;
                     SaveSettings();
-
-                    foreach (var item in _targetItems)
-                    {
-                        AddOrUpdateTargetItem(item.Key, item.Value);
-                    }
                 }
             }
         }
@@ -296,13 +291,14 @@ namespace InventoryTether
                 var player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
-                    var playerIdentity = MyAPIGateway.Players.TryGetIdentityId(player.ControllerInfo.ControllingIdentityId);
-                    if (playerIdentity != null)
+                    var controllingIdentityId = player.ControllerInfo?.ControllingIdentityId ?? 0;
+                    if (controllingIdentityId != 0)
                     {
-                        var relation = Block.GetUserRelationToOwner(playerIdentity.IdentityId);
+                        var relation = Block.GetUserRelationToOwner(controllingIdentityId);
                         if (relation.IsFriendly())
                         {
-                            return player; 
+                            Log.Info($"Valid Player Detected: {player.DisplayName}");
+                            return player;
                         }
                     }
                 }
@@ -418,6 +414,14 @@ namespace InventoryTether
                 DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), key, null);
             }
         }
+
+        private void SyncTargetItemsToClients()
+        {
+            foreach (var item in TargetItems)
+            {
+                DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), item.Key, item.Value);
+            }
+        }
         #endregion
 
         #region Settings
@@ -448,6 +452,8 @@ namespace InventoryTether
                     HardCap = loadedSettings.Stored_HardCap;
                     BlockRange = loadedSettings.Stored_BlockRange;
                     TargetItems = new Dictionary<string, ComponentData>(loadedSettings.Stored_TargetItems);
+
+                    SyncTargetItemsToClients();
 
                     return true;
                 }
@@ -505,6 +511,7 @@ namespace InventoryTether
 
             foreach (var player in NearPlayers())
             {
+                Log.Info($"Handling Inventory for: {player.DisplayName}");
                 HandleInventory(
                     player.GetInventory() as MyInventory, player,
                     (p, subtype, amount) => AddItemToInventory(p, subtype, amount, t => t.GetInventory() as MyInventory),
@@ -593,7 +600,7 @@ namespace InventoryTether
                 }
 
                 if (!itemStocked)
-                {
+                {                    
                     addItemMethod(target, subtype, itemAmount);
                 }
                 else if (itemOverStocked && HardCap)
