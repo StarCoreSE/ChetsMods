@@ -82,6 +82,11 @@ namespace InventoryTether
                 {
                     _targetItems = value;
                     SaveSettings();
+
+                    foreach (var item in _targetItems)
+                    {
+                        AddOrUpdateTargetItem(item.Key, item.Value);
+                    }
                 }
             }
         }
@@ -261,7 +266,7 @@ namespace InventoryTether
             NotifNoneStatus.Show();
         }
 
-        private List<T> GetNearbyEntities<T>(Func<MyEntity, T> entitySelector) where T : class
+        private List<T> GetNearbyEntities<T>(Func<MyEntity, List<T>> entitySelector) where T : class
         {
             var nearbyEntities = new List<T>();
             var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
@@ -273,10 +278,10 @@ namespace InventoryTether
 
                 foreach (var entity in entities)
                 {
-                    var selectedEntity = entitySelector(entity);
-                    if (selectedEntity != null)
+                    var selectedEntities = entitySelector(entity);
+                    if (selectedEntities != null)
                     {
-                        nearbyEntities.Add(selectedEntity);
+                        nearbyEntities.AddRange(selectedEntities);
                     }
                 }
             }
@@ -291,6 +296,7 @@ namespace InventoryTether
 
             return GetNearbyEntities(entity =>
             {
+                var nearbyPlayers = new List<IMyCharacter>();
                 var player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
@@ -298,11 +304,11 @@ namespace InventoryTether
                     {
                         if (realplayer.Character == player && Block.GetUserRelationToOwner(realplayer.IdentityId).IsFriendly())
                         {
-                            return player;
+                            nearbyPlayers.Add(player);
                         }
                     }
                 }
-                return null;
+                return nearbyPlayers;
             });
         }
 
