@@ -123,9 +123,6 @@ namespace InventoryTether
 
             Config.Load();
 
-            if (Block.Enabled)
-                Block.Enabled = false;
-
             definitionsInSession = MyDefinitionManager.Static.GetAllDefinitions();
             InventoryTetherControls.DoOnce(ModContext);
 
@@ -170,6 +167,9 @@ namespace InventoryTether
             }
             if (!LoadSettings())
             {
+                if (Block.Enabled)
+                    Block.Enabled = false;
+
                 BlockRange = IsSmallGrid() ? Config.Small_MaxBlockRange / 2 : Config.MaxBlockRange / 2; ;
             }
 
@@ -259,7 +259,7 @@ namespace InventoryTether
             NotifNoneStatus.Text = text;
             NotifNoneStatus.AliveTime = aliveTime;
             NotifNoneStatus.Show();
-        }   
+        }
 
         private List<T> GetNearbyEntities<T>(Func<MyEntity, T> entitySelector) where T : class
         {
@@ -286,14 +286,14 @@ namespace InventoryTether
 
         private List<IMyCharacter> NearPlayers()
         {
+            var actualPlayers = new List<IMyPlayer>();
+            MyAPIGateway.Players.GetPlayers(actualPlayers);
+
             return GetNearbyEntities(entity =>
             {
                 var player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
-                    var actualPlayers = new List<IMyPlayer>();
-                    MyAPIGateway.Players.GetPlayers(actualPlayers);
-
                     foreach (var realplayer in actualPlayers)
                     {
                         if (realplayer.Character == player && Block.GetUserRelationToOwner(realplayer.IdentityId).IsFriendly())
@@ -479,7 +479,7 @@ namespace InventoryTether
                 {
                     Stored_HardCap = HardCap,
                     Stored_BlockRange = BlockRange,
-                    Stored_TargetItems = new Dictionary<string, ComponentData>(TargetItems) // Store dictionary
+                    Stored_TargetItems = new Dictionary<string, ComponentData>(TargetItems)
                 };
 
                 string serializedData = Convert.ToBase64String(MyAPIGateway.Utilities.SerializeToBinary(settings));
