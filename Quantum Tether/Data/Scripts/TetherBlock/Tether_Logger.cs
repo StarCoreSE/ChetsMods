@@ -30,7 +30,7 @@ namespace InventoryTether
         private static string GenerateTimestampedFileName()
         {
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            return $"[{timestamp}]-FieldGenerator.log";
+            return $"[{timestamp}]-QuantumTether.log";
         }
 
         /// <summary>

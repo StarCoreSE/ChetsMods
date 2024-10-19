@@ -151,7 +151,7 @@ namespace InventoryTether
             #region Stock Amount Text Box
             var componentStockAmountBox = MyAPIGateway.TerminalControls.CreateControl<IMyTerminalControlTextbox, IMyCollector>(IdPrefix + "componentStockAmountBox");
             componentStockAmountBox.Title = MyStringId.GetOrCompute("Stock Amount");
-            componentStockAmountBox.Tooltip = MyStringId.GetOrCompute("How Much of the Selected Components you want Stocked");
+            componentStockAmountBox.Tooltip = MyStringId.GetOrCompute("How Much of the Selected Components you want Stocked [Limited by Config Min/Max]");
             componentStockAmountBox.Visible = IsVisible;
             componentStockAmountBox.Setter = (b, v) => 
             {
@@ -283,7 +283,7 @@ namespace InventoryTether
             var logic = GetLogic(block);
             if (logic != null)
             {
-                return logic.Config.MinBlockRange;
+                return logic.IsSmallGrid() ? logic.Config.Small_MinBlockRange : logic.Config.MinBlockRange;
             }
             return 0;
         }
@@ -293,7 +293,7 @@ namespace InventoryTether
             var logic = GetLogic(block);
             if (logic != null)
             {
-                return logic.Config.MaxBlockRange;
+                return logic.IsSmallGrid() ? logic.Config.Small_MaxBlockRange : logic.Config.MaxBlockRange;
             }
             return 0;
         }

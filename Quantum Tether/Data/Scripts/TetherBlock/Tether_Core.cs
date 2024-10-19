@@ -25,10 +25,11 @@ using InventoryTether.Config;
 using InventoryTether.Networking.Custom;
 using ProtoBuf;
 using VRage.Collections;
+using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
 
 namespace InventoryTether
 {
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
     public class InventoryTether : MyGameLogicComponent
     {
         private IMyCollector Block;
@@ -167,10 +168,9 @@ namespace InventoryTether
                 NeedsUpdate &= ~MyEntityUpdateEnum.EACH_100TH_FRAME;
                 return;
             }
-
             if (!LoadSettings())
             {
-                BlockRange = Config.MaxBlockRange / 2;
+                BlockRange = IsSmallGrid() ? Config.Small_MaxBlockRange / 2 : Config.MaxBlockRange / 2; ;
             }
 
             ClientSettingsLoaded = true;
@@ -249,11 +249,16 @@ namespace InventoryTether
             if (!Block.IsWorking)
                 return 0f;
 
-            if (BlockRange <= Config.MinBlockRange)
-                return Config.MinimumPowerRequirement;
+            float minPower = IsSmallGrid() ? Config.Small_MinimumPowerRequirement : Config.MinimumPowerRequirement;
+            float maxPower = IsSmallGrid() ? Config.Small_MaximumPowerRequirement : Config.MaximumPowerRequirement;
 
-            float ratio = BlockRange / Config.MaxBlockRange;
-            return Config.MaximumPowerRequirement * ratio;
+            float blockRange = BlockRange;
+
+            if (blockRange <= (IsSmallGrid() ? Config.Small_MinBlockRange : Config.MinBlockRange))
+                return minPower;
+
+            float ratio = blockRange / (IsSmallGrid() ? Config.Small_MaxBlockRange : Config.MaxBlockRange);
+            return maxPower * ratio;
         }
 
         private void CheckShowArea()
@@ -348,7 +353,7 @@ namespace InventoryTether
             });
         }
 
-        private List<IMyCubeGrid> NearGrids()
+        /*private List<IMyCubeGrid> NearGrids()
         {
             return GetNearbyEntities(entity =>
             {
@@ -366,11 +371,25 @@ namespace InventoryTether
                 }
                 return null;
             });
+        }*/
+
+        public bool IsSmallGrid()
+        {
+            return Block.CubeGrid.GridSizeEnum == MyCubeSize.Small || Block.BlockDefinition.SubtypeId == "Quantum_Tether_Small";
+        }
+
+        private MyFixedPoint ClampMyFixedPoint(MyFixedPoint value, MyFixedPoint min, MyFixedPoint max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
         }
 
         // Garnular Dict Sync
         public void AddOrUpdateTargetItem(string key, ComponentData componentData)
         {
+            componentData.StockAmount = ClampMyFixedPoint(componentData.StockAmount, (MyFixedPoint)Config.MinStockAmount, (MyFixedPoint)Config.MaxStockAmount);
+
             if (!TargetItems.ContainsKey(key))
             {
                 TargetItems.Add(key, componentData);
@@ -488,7 +507,7 @@ namespace InventoryTether
                 );
             }
 
-            foreach (var grid in NearGrids())
+            /*foreach (var grid in NearGrids())
             {
                 var gridGroup = grid.GetGridGroup(GridLinkTypeEnum.Logical);
                 var subgroups = new List<IMyCubeGrid>();
@@ -510,7 +529,7 @@ namespace InventoryTether
                         }
                     }
                 }
-            }
+            }*/
         }
 
         private void HandleInventory<T>(MyInventory inventory, T target, Action<T, string, MyFixedPoint> addItemMethod, Action<T, string, MyFixedPoint> removeItemMethod)
@@ -750,7 +769,7 @@ namespace InventoryTether
         public Dictionary<string, ComponentData> Stored_TargetItems { get; set; } = new Dictionary<string, ComponentData>();
     }
 
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
     public class TetherRingsAnimation : MyGameLogicComponent
     {
         private const string SubpartOneName = "Torus_1"; // dummy name without the "subpart_" prefix
@@ -950,7 +969,7 @@ namespace InventoryTether
         }
     }
 
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
     public class QuantumTetherParticle : StandardParticleGamelogic
     {
         protected override void Setup()
