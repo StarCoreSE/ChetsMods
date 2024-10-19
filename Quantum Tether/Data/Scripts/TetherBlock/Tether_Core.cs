@@ -263,28 +263,38 @@ namespace InventoryTether
 
         private List<IMyCharacter> NearPlayers()
         {
-            var nearbyPlayers = new List<IMyCharacter>();
-            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
+            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();
+            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
 
             if (Block == null) 
                 return nearbyPlayers;
 
             var entities = new List<MyEntity>();
+            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
             MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, entities);
+            MyAPIGateway.Players.GetPlayers(actualPlayers);
 
             foreach (var entity in entities)
             {
-                var player = entity as IMyCharacter;
+                IMyCharacter player = entity as IMyCharacter;
                 if (player != null && player.IsPlayer)
                 {
-                    var controllingIdentityId = player.ControllerInfo.ControllingIdentityId;
-                    if (controllingIdentityId != 0)
+                    if (bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
                     {
-                        var relation = Block.GetUserRelationToOwner(controllingIdentityId);
-                        if (relation.IsFriendly())
+                        foreach (IMyPlayer realplayer in actualPlayers)
                         {
-                            Log.Info($"Valid Player Detected: {player.DisplayName}");
-                            nearbyPlayers.Add(player);
+                            if (realplayer.Character == player)
+                            {
+                                var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
+
+                                if (playerRelation.IsFriendly())
+                                {
+                                    Log.Info($"Valid Player Detected: {player.DisplayName}");
+                                    nearbyPlayers.Add(player);
+                                }
+                                else
+                                    continue;
+                            }
                         }
                     }
                 }
