@@ -24,7 +24,6 @@ using VRageMath;
 
 namespace InventoryTether.Particle
 {
-    // this is where the conditions are registered with the gamelogic
     public abstract partial class StandardParticleGamelogic
     {
         ParticleBase CreateParticleHolder(IMyModelDummy dummy, string particleSubtypeId, string condition = null)
@@ -41,7 +40,6 @@ namespace InventoryTether.Particle
         }
     }
 
-    // just a basic particle container that holds it until model changes, nothing to edit here.
     public class ParticleBase
     {
         public StandardParticleGamelogic GameLogic;
@@ -78,8 +76,6 @@ namespace InventoryTether.Particle
         }
     }
 
-    // example particle with condition
-    // you can clone+rename+change to have some custom conditions, just remember to add it to CreateParticleHolder() above.
     public class ParticleOnWorking : ParticleBase, IUpdateable
     {
         public readonly IMyFunctionalBlock Block;
@@ -149,5 +145,4 @@ namespace InventoryTether.Particle
             }
         }
     }
-
 }

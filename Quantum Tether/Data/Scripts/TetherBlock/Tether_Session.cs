@@ -1,0 +1,62 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using VRage.Game.Components;
+using Sandbox.ModAPI;
+using InventoryTether.Networking;
+
+namespace InventoryTether
+{
+    [MySessionComponentDescriptor(MyUpdateOrder.AfterSimulation)]
+    public class InventoryTetherSession : MySessionComponentBase
+    {
+        public static HeartNetwork Networking = new HeartNetwork();
+        public static PacketQueueManager PacketQueue = new PacketQueueManager();
+
+        public override void LoadData()
+        {
+            base.LoadData();
+
+            Networking.Init("FieldGeneratorNetwork");
+            PacketQueue.Init();
+        }
+
+        public override void UpdateAfterSimulation()
+        {
+            base.UpdateAfterSimulation();
+
+            if (!PacketQueueManager.I.QueuesWithPackets())
+                return;
+
+            foreach (long entityID in PacketQueueManager.I.EntitiesWithQueue())
+            {
+                PacketBase packet = PacketQueueManager.I.FirstInQueue(entityID);
+
+                if (packet != null)
+                {                 
+                    if (HeartNetwork.CheckRateLimit(entityID))
+                    {
+                        Log.Info($"PacketManager: Queued Packet Found for Entity ID: {entityID}");
+
+                        if (MyAPIGateway.Session.IsServer)
+                            HeartNetwork.I.SendToEveryone(packet);
+                        else
+                            HeartNetwork.I.SendToServer(packet);
+
+                        Log.Info($"PacketManager: Sent Queued Packet for Entity ID: {entityID}, Removing From Queue");
+
+                        PacketQueueManager.I.DequeuePacket(entityID);
+                    }
+                }
+            }
+        }
+
+        protected override void UnloadData()
+        {
+            Networking.Close();
+            PacketQueue.Close();
+        }
+    }
+}

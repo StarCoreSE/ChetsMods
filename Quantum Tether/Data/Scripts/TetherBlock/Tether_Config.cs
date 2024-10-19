@@ -7,14 +7,8 @@ using VRage.Utils;
 
 namespace InventoryTether.Config
 {
-    // This example is minimal code required for it to work and with comments so you can better understand what is going on.
-
-    // The gist of it is: ini file is loaded/created that admin can edit, SetVariable is used to store that data in sandbox.sbc which gets automatically sent to joining clients.
-    // Benefit of this is clients will be getting this data before they join, very good if you need it during LoadData()
-    // This example does not support reloading config while server runs, you can however implement that by sending a packet to all online players with the ini data for them to parse.
-
     [MySessionComponentDescriptor(MyUpdateOrder.NoUpdate)]
-    public class Tether_BasicConfig : MySessionComponentBase
+    public class InventoryTetherConfig : MySessionComponentBase
     {
         Tether_ConfigSettings Config = new Tether_ConfigSettings();
 
@@ -34,7 +28,7 @@ namespace InventoryTether.Config
 
     public class Tether_ConfigSettings
     {
-        const string VariableId = nameof(Tether_BasicConfig); // IMPORTANT: must be unique as it gets written in a shared space (sandbox.sbc)
+        const string VariableId = nameof(InventoryTetherConfig); // IMPORTANT: must be unique as it gets written in a shared space (sandbox.sbc)
         const string FileName = "Quantum_Tether_Config.ini"; // the file that gets saved to world storage under your mod's folder
         const string IniSection = "Config";
 
