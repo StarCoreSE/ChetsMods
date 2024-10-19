@@ -29,7 +29,7 @@ using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
 
 namespace InventoryTether
 {
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small", "Quantum_Tether_Medium")]
     public class InventoryTether : MyGameLogicComponent
     {
         private IMyCollector Block;
@@ -142,6 +142,9 @@ namespace InventoryTether
         {
             base.UpdateAfterSimulation();
 
+            CheckShowArea();
+            SetEmissives();
+
             if (!IsServer)
                 return;
 
@@ -153,10 +156,7 @@ namespace InventoryTether
 
                     ScanForTargets();
                 }              
-            }
-
-            CheckShowArea();
-            SetEmissives();
+            }         
         }
 
         public override void UpdateAfterSimulation100()
@@ -220,6 +220,23 @@ namespace InventoryTether
             return logic;
         }
 
+        private float RequiredInput()
+        {
+            if (!Block.IsWorking)
+                return 0f;
+
+            float minPower = IsSmallGrid() ? Config.Small_MinimumPowerRequirement : Config.MinimumPowerRequirement;
+            float maxPower = IsSmallGrid() ? Config.Small_MaximumPowerRequirement : Config.MaximumPowerRequirement;
+
+            float blockRange = BlockRange;
+
+            if (blockRange <= (IsSmallGrid() ? Config.Small_MinBlockRange : Config.MinBlockRange))
+                return minPower;
+
+            float ratio = blockRange / (IsSmallGrid() ? Config.Small_MaxBlockRange : Config.MaxBlockRange);
+            return maxPower * ratio;
+        }
+
         private void SetStatus(string text, int aliveTime = 300, string font = MyFontEnum.Green)
         {
             if (NotifStatus == null)
@@ -242,71 +259,7 @@ namespace InventoryTether
             NotifNoneStatus.Text = text;
             NotifNoneStatus.AliveTime = aliveTime;
             NotifNoneStatus.Show();
-        }
-
-        private float RequiredInput()
-        {
-            if (!Block.IsWorking)
-                return 0f;
-
-            float minPower = IsSmallGrid() ? Config.Small_MinimumPowerRequirement : Config.MinimumPowerRequirement;
-            float maxPower = IsSmallGrid() ? Config.Small_MaximumPowerRequirement : Config.MaximumPowerRequirement;
-
-            float blockRange = BlockRange;
-
-            if (blockRange <= (IsSmallGrid() ? Config.Small_MinBlockRange : Config.MinBlockRange))
-                return minPower;
-
-            float ratio = blockRange / (IsSmallGrid() ? Config.Small_MaxBlockRange : Config.MaxBlockRange);
-            return maxPower * ratio;
-        }
-
-        private void CheckShowArea()
-        {
-            if (!ShowArea || MyAPIGateway.Utilities.IsDedicated)
-                return;
-
-
-            Vector3 pos = Block.GetPosition();
-            var matrix = MatrixD.CreateWorld(pos);
-            int wireDivRatio = 360 / 15;
-
-            Color color = Block.IsWorking ? Color.LightGreen : Color.Yellow;
-            if (!Block.Enabled)
-            {
-                color = Color.DarkGray;
-            }
-
-            float radius = BlockRange / 2;
-            float lineThickness = 0.15f + ((radius - 2.5f) / ((Config.MaxBlockRange / 2) - (Config.MinBlockRange / 2))) * (1.5f - 0.15f);
-
-            MySimpleObjectDraw.DrawTransparentSphere(ref matrix, BlockRange / 2, ref color, MySimpleObjectRasterizer.Wireframe, wireDivRatio, null, MyStringId.GetOrCompute("WeaponLaserIgnoreDepth"), lineThickness, -1, null, BlendTypeEnum.SDR, 1);
-        }
-
-        private void SetEmissives()
-        {
-            if (Block.IsWorking)
-            {
-                if (!EmissiveSet)
-                {
-                    Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.DeepSkyBlue, 0.75f);
-                    EmissiveSet = true;
-                }
-                // No action needed for EmissiveSet = true, just return
-                return;
-            }
-
-            if (!Block.Enabled)
-            {
-                Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Black, 100f);
-                EmissiveSet = false;
-            }
-            else // InventoryTetherBlock.Enabled == true
-            {
-                Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Yellow, 0.75f);
-                EmissiveSet = false;
-            }
-        }
+        }   
 
         private List<T> GetNearbyEntities<T>(Func<MyEntity, T> entitySelector) where T : class
         {
@@ -375,7 +328,55 @@ namespace InventoryTether
 
         public bool IsSmallGrid()
         {
-            return Block.CubeGrid.GridSizeEnum == MyCubeSize.Small || Block.BlockDefinition.SubtypeId == "Quantum_Tether_Small";
+            return Block.CubeGrid.GridSizeEnum == MyCubeSize.Small || 
+                (Block.BlockDefinition.SubtypeId == "Quantum_Tether_Small" ||
+                Block.BlockDefinition.SubtypeId == "Quantum_Tether_Medium");
+        }
+
+        private void CheckShowArea()
+        {
+            if (!ShowArea || MyAPIGateway.Utilities.IsDedicated)
+                return;
+
+            Vector3 pos = Block.GetPosition();
+            var matrix = MatrixD.CreateWorld(pos);
+            int wireDivRatio = 360 / 15;
+
+            Color color = Block.IsWorking ? Color.LightGreen : Color.Yellow;
+            if (!Block.Enabled)
+            {
+                color = Color.DarkGray;
+            }
+
+            float radius = BlockRange / 2;
+            float lineThickness = 0.15f + ((radius - 2.5f) / ((Config.MaxBlockRange / 2) - (Config.MinBlockRange / 2))) * (1.5f - 0.15f);
+
+            MySimpleObjectDraw.DrawTransparentSphere(ref matrix, BlockRange / 2, ref color, MySimpleObjectRasterizer.Wireframe, wireDivRatio, null, MyStringId.GetOrCompute("WeaponLaserIgnoreDepth"), lineThickness, -1, null, BlendTypeEnum.SDR, 1);
+        }
+
+        private void SetEmissives()
+        {
+            if (Block.IsWorking)
+            {
+                if (!EmissiveSet)
+                {
+                    Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.DeepSkyBlue, 0.75f);
+                    EmissiveSet = true;
+                }
+                // No action needed for EmissiveSet = true, just return
+                return;
+            }
+
+            if (!Block.Enabled)
+            {
+                Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Black, 100f);
+                EmissiveSet = false;
+            }
+            else // InventoryTetherBlock.Enabled == true
+            {
+                Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Yellow, 0.75f);
+                EmissiveSet = false;
+            }
         }
 
         private MyFixedPoint ClampMyFixedPoint(MyFixedPoint value, MyFixedPoint min, MyFixedPoint max)
@@ -534,8 +535,22 @@ namespace InventoryTether
 
         private void HandleInventory<T>(MyInventory inventory, T target, Action<T, string, MyFixedPoint> addItemMethod, Action<T, string, MyFixedPoint> removeItemMethod)
         {
-            if (inventory == null) 
+            if (inventory == null)
                 return;
+
+            if (TargetItems.Count == 0 && HardCap)
+            {
+                foreach (var item in inventory.GetItems())
+                {
+                    var component = item.Content as MyObjectBuilder_Component;
+                    if (component != null && item.Amount > 0)
+                    {
+                        removeItemMethod(target, component.SubtypeName, item.Amount);
+                        break;
+                    }
+                }
+                return;
+            }
 
             foreach (var subtype in TargetItems.Keys)
             {
@@ -546,13 +561,13 @@ namespace InventoryTether
                 MyFixedPoint overstockItemAmount = 0;
 
                 ComponentData componentData;
-                if (!TargetItems.TryGetValue(subtype, out componentData)) 
+                if (!TargetItems.TryGetValue(subtype, out componentData))
                     continue;
 
                 foreach (var item in inventory.GetItems())
                 {
                     var component = item.Content as MyObjectBuilder_Component;
-                    if (component == null || component.SubtypeName != subtype) 
+                    if (component == null || component.SubtypeName != subtype)
                         continue;
 
                     if (item.Amount >= componentData.StockAmount)
@@ -564,7 +579,6 @@ namespace InventoryTether
                             itemOverStocked = true;
                             overstockItemAmount = item.Amount - componentData.StockAmount;
                         }
-
                         break;
                     }
                     else if (item.Amount < componentData.StockAmount)
@@ -583,7 +597,7 @@ namespace InventoryTether
                     removeItemMethod(target, subtype, overstockItemAmount);
                 }
             }
-        }     
+        }
 
         private void AddItemToInventory<T>(T target, string subtype, MyFixedPoint currentItemAmount, Func<T, MyInventory> getInventory)
         {
@@ -602,10 +616,6 @@ namespace InventoryTether
             bool invDisconnect = false;
             if (!TetherGridHasItem(subtype, neededItemsNumber, out invDisconnect))
             {
-                if (invDisconnect)
-                {
-                    SetStatus($"Tether: Inventory Inaccessible for {subtype}", 2000, "Red");
-                }
                 return;
             }
 
@@ -622,14 +632,6 @@ namespace InventoryTether
 
                     inventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
                 }
-                else
-                {
-                    SetStatus($"Unable to add items to inventory: {subtype}", 2000, "Red");
-                }
-            }
-            else
-            {
-                SetStatus($"Failed to remove items from tether grid: {subtype}", 2000, "Red");
             }
         }
 
@@ -645,7 +647,7 @@ namespace InventoryTether
             ComponentData componentData = null;
             TargetItems.TryGetValue(subtype, out componentData);
 
-            if (targetInventory.ContainItems(componentData.StockAmount + overstockItemAmount, componentDefinition.Id))
+            if (targetInventory.ContainItems(overstockItemAmount, componentDefinition.Id))
             {
                 var inventoryItem = new MyObjectBuilder_InventoryItem()
                 {
@@ -769,7 +771,7 @@ namespace InventoryTether
         public Dictionary<string, ComponentData> Stored_TargetItems { get; set; } = new Dictionary<string, ComponentData>();
     }
 
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small", "Quantum_Tether_Medium")]
     public class TetherRingsAnimation : MyGameLogicComponent
     {
         private const string SubpartOneName = "Torus_1"; // dummy name without the "subpart_" prefix
@@ -969,7 +971,7 @@ namespace InventoryTether
         }
     }
 
-    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small")]
+    [MyEntityComponentDescriptor(typeof(MyObjectBuilder_Collector), false, "Quantum_Tether", "Quantum_Tether_Small", "Quantum_Tether_Medium")]
     public class QuantumTetherParticle : StandardParticleGamelogic
     {
         protected override void Setup()

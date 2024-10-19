@@ -12,6 +12,7 @@
 				Wirelessly Restocks Player Inventories with Componenets based on the Parameters set in the Block Settings
 			</Description>
             <CubeSize>Large</CubeSize>
+			<GuiVisible>true</GuiVisible>
             <BlockTopology>TriangleMesh</BlockTopology>
             <Size x="1" y="1" z="1" />
             <ModelOffset x="0" y="0" z="0" />
@@ -67,6 +68,7 @@
 				<SubtypeId>Quantum_Tether_Small</SubtypeId>
 			</Id>
 			<DisplayName>Quantum Tether</DisplayName>
+			<GuiVisible>false</GuiVisible>
 			<Icon>Textures\GUI\Icons\Cubes\Quantum_Tether_Small.dds</Icon>
 			<Description>Wirelessly Restocks Player Inventories with Componenets based on the Parameters set in the Block Settings</Description>
 			<CubeSize>Small</CubeSize>
@@ -117,6 +119,63 @@
 			<PCU>25</PCU>
 			<IsAirTight>true</IsAirTight>
 		</Definition>
-        <!-- End Region Conveyor system -->
+
+		<Definition xsi:type="MyObjectBuilder_PoweredCargoContainerDefinition">
+			<Id>
+				<TypeId>Collector</TypeId>
+				<SubtypeId>Quantum_Tether_Medium</SubtypeId>
+			</Id>
+			<DisplayName>Quantum Tether</DisplayName>
+			<Icon>Textures\GUI\Icons\Cubes\Quantum_Tether_Medium.dds</Icon>
+			<Description>Wirelessly Restocks Player Inventories with Componenets based on the Parameters set in the Block Settings</Description>
+			<CubeSize>Small</CubeSize>
+			<IsPublic>false</IsPublic>
+			<BlockTopology>TriangleMesh</BlockTopology>
+			<Size x="3" y="3" z="3" />
+			<ModelOffset x="0" y="0" z="0" />
+			<Model>Models\Cubes\Small\Quantum_Tether_Medium.mwm</Model>
+			<Components>
+				<Component Subtype="SteelPlate" Count="20" />
+				<Component Subtype="MetalGrid" Count="20" />
+				<Component Subtype="BulletproofGlass" Count="10" />
+				<Component Subtype="GravityGenerator" Count="10" />
+				<Component Subtype="Superconductor" Count="75" />
+				<Component Subtype="Computer" Count="95" />
+				<Component Subtype="Construction" Count="50" />
+				<Component Subtype="SteelPlate" Count="50" />
+			</Components>
+			<CriticalComponent Subtype="Computer" Index="0" />
+			<BuildProgressModels>
+				<Model BuildPercentUpperBound="0.80" File="Models\Cubes\Small\Quantum_Tether_Medium_BS2.mwm" />
+				<Model BuildPercentUpperBound="0.50" File="Models\Cubes\Small\Quantum_Tether_Medium_BS1.mwm" />
+			</BuildProgressModels>
+			<BlockPairName>Quantum_Tether_Medium_Block</BlockPairName>
+			<EdgeType>Light</EdgeType>
+			<BuildTimeSeconds>25</BuildTimeSeconds>
+			<ResourceSinkGroup>Conveyors</ResourceSinkGroup>
+			<RequiredPowerInput>100.00</RequiredPowerInput>
+			<InventorySize>
+				<X>1.5</X>
+				<Y>1.5</Y>
+				<Z>1.5</Z>
+			</InventorySize>
+			<MountPoints>
+				<MountPoint Side="Bottom" StartX="0" StartY="0" EndX="3" EndY="3" />
+				<MountPoint Side="Top" StartX="0" StartY="0" EndX="3" EndY="3" />
+				<MountPoint Side="Back" StartX="0" StartY="0" EndX="3" EndY="3" />
+				<MountPoint Side="Left" StartX="0" StartY="0" EndX="3" EndY="3" />
+				<MountPoint Side="Right" StartX="0" StartY="0" EndX="3" EndY="3" />
+				<MountPoint Side="Front" StartX="0" StartY="0" EndX="3" EndY="3" />
+			</MountPoints>
+			<MirroringY>Z</MirroringY>
+			<MirroringZ>Y</MirroringZ>
+			<DamageEffectName>Damage_HeavyMech_Damaged</DamageEffectName>
+			<DamagedSound>ParticleHeavyMech</DamagedSound>
+			<ActionSound>BlockCollect</ActionSound>
+			<DestroyEffect>BlockDestroyedExplosion_Large</DestroyEffect>
+			<DestroySound>WepSmallWarheadExpl</DestroySound>
+			<PCU>25</PCU>
+			<IsAirTight>true</IsAirTight>
+		</Definition>
     </CubeBlocks>
 </Definitions>

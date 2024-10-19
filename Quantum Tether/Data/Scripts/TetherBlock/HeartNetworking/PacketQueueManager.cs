@@ -51,8 +51,8 @@ namespace InventoryTether.Networking
                 entityIds.Add(entityId);
             }
 
-            string propertyName = GetPropertyName(packet);
-            RemoveStalePackets(packetQueues[entityId], propertyName);
+            string keyOrProperty = GetKeyOrProperty(packet);
+            RemoveStalePackets(packetQueues[entityId], keyOrProperty);   
 
             packetQueues[entityId].AddLast(packet);
         }
@@ -104,7 +104,7 @@ namespace InventoryTether.Networking
         #endregion
 
         #region Private Methods
-        private void RemoveStalePackets(LinkedList<PacketBase> list, string propertyName)
+        private void RemoveStalePackets(LinkedList<PacketBase> list, string keyOrProperty)
         {
             var currentNode = list.First;
 
@@ -112,20 +112,14 @@ namespace InventoryTether.Networking
             {
                 var nextNode = currentNode.Next;
 
-                if (currentNode.Value is DictSyncPacket)
-                {
-                    currentNode = nextNode;
-                    continue;
-                }
-
-                if (GetPropertyName(currentNode.Value) == propertyName)
+                if (GetPropertyName(currentNode.Value) == keyOrProperty)
                 {
                     list.Remove(currentNode);
                 }
 
                 currentNode = nextNode;
             }
-        } 
+        }
 
         private bool EntityHasPackets(long entityID)
         {
@@ -144,12 +138,18 @@ namespace InventoryTether.Networking
             return 0;
         }
 
+        private string GetKeyOrProperty(PacketBase packet)
+        {
+            if (packet.GetType() == typeof(DictSyncPacket))
+                return ((DictSyncPacket)packet).key;  // Extract dict key for dict packets
+
+            return GetPropertyName(packet);  // Use property name for other packet types
+        }
+
         private string GetPropertyName(PacketBase packet)
         {
             if (packet.GetType() == typeof(FloatSyncPacket))
                 return ((FloatSyncPacket)packet).propertyName;
-            if (packet.GetType() == typeof(DictSyncPacket))
-                return ((DictSyncPacket)packet).propertyName;
             if (packet.GetType() == typeof(BoolSyncPacket))
                 return ((BoolSyncPacket)packet).propertyName;
 

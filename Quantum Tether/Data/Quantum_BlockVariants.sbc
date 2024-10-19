@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <BlockVariantGroups>
+      <BlockVariantGroup>
+        <Id Type="MyObjectBuilder_BlockVariantGroup" Subtype="Tether_Variants" />
+        <Icon>Textures\GUI\Icons\Quantom_Tether.dds</Icon>
+        <DisplayName>Quantum Tether</DisplayName>
+        <Description>desc</Description>
+        <Blocks>
+          <Block Type="MyObjectBuilder_Collector" Subtype="Quantum_Tether" />
+          <Block Type="MyObjectBuilder_Collector" Subtype="Quantum_Tether_Small" />
+          <Block Type="MyObjectBuilder_Collector" Subtype="Quantum_Tether_Medium" />
+        </Blocks>
+      </BlockVariantGroup>
+
+    </BlockVariantGroups>
+</Definitions>
