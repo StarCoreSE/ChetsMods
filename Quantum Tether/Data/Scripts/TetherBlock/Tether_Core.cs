@@ -293,7 +293,7 @@ namespace InventoryTether
             foreach (var entity in entities)
             {
                 IMyCharacter player = entity as IMyCharacter;
-                if (player != null && player.IsPlayer)
+                if (player != null)
                 {
                     Log.Info($"Player Is Real: {player.DisplayName}");
 
