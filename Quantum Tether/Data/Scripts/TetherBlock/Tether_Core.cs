@@ -263,89 +263,43 @@ namespace InventoryTether
 
         private List<IMyCharacter> NearPlayers()
         {
-            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();
+            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();           
 
-            if (Block == null)
-            {
-                Log.Info("Block is null. Returning an empty player list.");
+            if (Block == null) 
                 return nearbyPlayers;
-            }
 
             var entities = new List<MyEntity>();
             var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
             MyGamePruningStructure.GetAllEntitiesInSphere(ref bound, entities);
 
-            Log.Info($"Total Entities Found in Sphere: {entities.Count}");
-            foreach (var entity in entities)
-            {
-                Log.Info($"Entity Detected: {entity.GetType().Name} (DisplayName: {entity.DisplayName})");
-            }
-
             List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
             MyAPIGateway.Players.GetPlayers(actualPlayers);
-
-            Log.Info($"Total Players Found: {actualPlayers.Count}");
-            foreach (IMyPlayer realplayer in actualPlayers)
-            {
-                Log.Info($"Player Detected: {realplayer.DisplayName}, Character: {realplayer.Character?.DisplayName ?? "No Character"}");
-            }
 
             foreach (var entity in entities)
             {
                 IMyCharacter player = entity as IMyCharacter;
                 if (player != null)
-                {
-                    Log.Info($"Player Is Real: {player.DisplayName}");
-
+                {;
                     if (bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
                     {
-                        Log.Info($"Player In Bounds: {player.DisplayName}");
                         foreach (IMyPlayer realplayer in actualPlayers)
                         {
-                            Log.Info($"Processing Player in ActualPlayers: {realplayer.DisplayName}");
-
-                            if (realplayer.Character == null)
+                            if(realplayer.Character?.EntityId == player.EntityId)
                             {
-                                Log.Info($"Player {realplayer.DisplayName} has no character associated.");
-                            }
-                            else if (realplayer.Character?.EntityId != player.EntityId)
-                            {
-                                Log.Info($"Player {realplayer.DisplayName} has EntityId mismatch. Realplayer EntityId: {realplayer.Character?.EntityId}, Detected EntityId: {player.EntityId}");
-                            }
-                            else
-                            {
-                                Log.Info($"Player.Character was equal to Player: {realplayer.DisplayName}");
-
                                 var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
-                                Log.Info($"Player: {realplayer.DisplayName}, Relation: {playerRelation}, Block Owner: {Block.OwnerId}");
 
                                 if (playerRelation.IsFriendly())
                                 {
-                                    Log.Info($"Valid Player: {realplayer.DisplayName}");
                                     nearbyPlayers.Add(realplayer.Character);
                                 }
                                 else
-                                {
-                                    Log.Info($"Player {realplayer.DisplayName} is not friendly. Skipping.");
                                     continue;
-                                }
                             }
                         }
                     }
-                    else
-                    {
-                        Log.Info($"Player {player.DisplayName} is outside of bounds.");
-                    }
-
-                    Log.Info($"Player Position: {player.GetPosition()}, Block Position: {Block.GetPosition()}, Containment: {bound.Contains(player.GetPosition())}");
-                }
-                else if (player == null)
-                {
-                    Log.Info("Detected entity was not a player or had no valid player association.");
                 }
             }
 
-            Log.Info($"Returning {nearbyPlayers.Count} nearby valid players.");
             return nearbyPlayers;
         }
 
