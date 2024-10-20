@@ -270,7 +270,7 @@ namespace InventoryTether
 
             var entities = new List<MyEntity>();
             var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
-            MyGamePruningStructure.GetAllTopMostEntitiesInSphere(ref bound, entities);
+            MyGamePruningStructure.GetAllEntitiesInSphere(ref bound, entities);
 
             List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
             MyAPIGateway.Players.GetPlayers(actualPlayers);
