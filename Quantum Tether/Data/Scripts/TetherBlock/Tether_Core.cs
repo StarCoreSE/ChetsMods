@@ -178,6 +178,20 @@ namespace InventoryTether
             return;
         }
 
+        public override bool IsSerialized()
+        {
+            Log.Info($"IsSerialized called for {Block.EntityId}");
+            try
+            {
+                SaveSettings();
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+            return base.IsSerialized();
+        }
+
         public override void Close()
         {
             try
