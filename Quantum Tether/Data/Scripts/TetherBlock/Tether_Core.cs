@@ -34,15 +34,13 @@ namespace InventoryTether
     {
         private IMyCollector Block;
         private readonly bool IsServer = MyAPIGateway.Session.IsServer;
-        private bool IsDedicated = MyAPIGateway.Utilities.IsDedicated;
-        private bool ClientSettingsLoaded = false;
-
+        private readonly bool IsDedicated = MyAPIGateway.Utilities.IsDedicated;
+        
         public readonly Guid SettingsID = new Guid("47114A7D-B546-4C05-9E6E-2DFE3449E176");
-        public MyPoweredCargoContainerDefinition InventoryTetherBlockDef;
+        public MyPoweredCargoContainerDefinition BlockDefinition;
         public readonly Tether_ConfigSettings Config = new Tether_ConfigSettings();       
 
         #region Properties
-        //Synced Values
         public bool HardCap
         {
             get { return _hardCap; }
@@ -86,15 +84,16 @@ namespace InventoryTether
             }
         }
         public Dictionary<string, ComponentData> _targetItems = new Dictionary<string, ComponentData>();
-
-        //Client Values
-        public bool ShowArea = false;
         #endregion
 
         private string EmissiveMaterialName = "Emissive";
         private bool EmissiveSet = false;
 
-        public DictionaryValuesReader<MyDefinitionId, MyDefinitionBase> definitionsInSession = new DictionaryValuesReader<MyDefinitionId, MyDefinitionBase>();
+        public bool ShowArea = false;
+
+        private bool ClientSettingsLoaded = false;
+
+        public DictionaryValuesReader<MyDefinitionId, MyDefinitionBase> ComponentDefinitions = new DictionaryValuesReader<MyDefinitionId, MyDefinitionBase>();
         public StringBuilder TempStockAmount = new StringBuilder();
         public List<MyTerminalControlListBoxItem> TempItemsToAdd = new List<MyTerminalControlListBoxItem>();
         public List<MyTerminalControlListBoxItem> TempItemsToRemove = new List<MyTerminalControlListBoxItem>();
@@ -123,13 +122,13 @@ namespace InventoryTether
 
             Config.Load();
 
-            definitionsInSession = MyDefinitionManager.Static.GetAllDefinitions();
+            ComponentDefinitions = MyDefinitionManager.Static.GetAllDefinitions();
             InventoryTetherControls.DoOnce(ModContext);
 
             Sink = Block.Components.Get<MyResourceSinkComponent>();
             Sink.SetRequiredInputFuncByType(MyResourceDistributorComponent.ElectricityId, RequiredInput);
 
-            InventoryTetherBlockDef = (MyPoweredCargoContainerDefinition)Block.SlimBlock.BlockDefinition;
+            BlockDefinition = (MyPoweredCargoContainerDefinition)Block.SlimBlock.BlockDefinition;
 
             NeedsUpdate |= MyEntityUpdateEnum.EACH_FRAME;
             NeedsUpdate |= MyEntityUpdateEnum.EACH_100TH_FRAME;
@@ -208,6 +207,298 @@ namespace InventoryTether
         }
         #endregion
 
+        #region Dictionary Syncing
+        public void AddOrUpdateTargetItem(string key, ComponentData componentData)
+        {
+            componentData.StockAmount = ClampMyFixedPoint(componentData.StockAmount, (MyFixedPoint)Config.MinStockAmount, (MyFixedPoint)Config.MaxStockAmount);
+            TargetItems[key] = componentData;
+            SaveAndSync(key, componentData);
+        }
+
+        public void RemoveTargetItem(string key)
+        {
+            if (TargetItems.Remove(key))
+                SaveAndSync(key, null);
+        }
+
+        private void SyncTargetItemsToClients()
+        {
+            foreach (var item in TargetItems)
+                DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), item.Key, item.Value);
+        }
+
+        private void SaveAndSync(string key, ComponentData data)
+        {
+            SaveSettings();
+            DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), key, data);
+        }
+        #endregion
+
+        #region Main
+        private void ScanForTargets()
+        {
+            if (!Block.Enabled) return;
+
+            foreach (var player in NearPlayers())
+            {
+                Log.Info($"Handling Inventory for: {player.DisplayName}");
+                HandleInventory(
+                    player.GetInventory() as MyInventory, player,
+                    (p, subtype, amount) => AddItemToInventory(p, subtype, amount, t => t.GetInventory() as MyInventory),
+                    (p, subtype, amount) => RemoveItemFromInventory(p, subtype, amount, t => t.GetInventory() as MyInventory)
+                );
+            }
+        }
+
+        private List<IMyCharacter> NearPlayers()
+        {
+            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();
+
+            if (Block == null)
+                return nearbyPlayers;
+
+            var entities = new List<MyEntity>();
+            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
+            MyGamePruningStructure.GetAllEntitiesInSphere(ref bound, entities);
+
+            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
+            MyAPIGateway.Players.GetPlayers(actualPlayers);
+
+            foreach (var entity in entities)
+            {
+                IMyCharacter player = entity as IMyCharacter;
+                if (player != null)
+                {
+                    ;
+                    if (bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
+                    {
+                        foreach (IMyPlayer realplayer in actualPlayers)
+                        {
+                            if (realplayer.Character?.EntityId == player.EntityId)
+                            {
+                                var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
+
+                                if (playerRelation.IsFriendly())
+                                {
+                                    nearbyPlayers.Add(realplayer.Character);
+                                }
+                                else
+                                    continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return nearbyPlayers;
+        }
+
+        private void HandleInventory<T>(MyInventory inventory, T target, Action<T, string, MyFixedPoint> addItemMethod, Action<T, string, MyFixedPoint> removeItemMethod)
+        {
+            if (inventory == null) return;
+
+            if (TargetItems.Count == 0 && HardCap)
+            {
+                foreach (var item in inventory.GetItems())
+                {
+                    var component = item.Content as MyObjectBuilder_Component;
+                    if (component != null && item.Amount > 0)
+                    {
+                        removeItemMethod(target, component.SubtypeName, item.Amount);
+                        break;
+                    }
+                }
+                return;
+            }
+
+            foreach (var subtype in TargetItems.Keys)
+            {
+                bool itemStocked = false;
+                bool itemOverStocked = false;
+                MyFixedPoint itemAmount = 0;
+                MyFixedPoint overstockItemAmount = 0;
+
+                ComponentData componentData;
+                if (!TargetItems.TryGetValue(subtype, out componentData))
+                    continue;
+
+                foreach (var item in inventory.GetItems())
+                {
+                    var component = item.Content as MyObjectBuilder_Component;
+                    if (component == null || component.SubtypeName != subtype)
+                        continue;
+
+                    if (item.Amount >= componentData.StockAmount)
+                    {
+                        itemStocked = true;
+
+                        if (item.Amount > componentData.StockAmount && HardCap)
+                        {
+                            itemOverStocked = true;
+                            overstockItemAmount = item.Amount - componentData.StockAmount;
+                        }
+                        break;
+                    }
+                    else if (item.Amount < componentData.StockAmount)
+                    {
+                        itemAmount = item.Amount;
+                        break;
+                    }
+                }
+
+                if (!itemStocked)
+                {                    
+                    addItemMethod(target, subtype, itemAmount);
+                }
+                else if (itemOverStocked && HardCap)
+                {
+                    removeItemMethod(target, subtype, overstockItemAmount);
+                }
+            }
+        }
+
+        private void AddItemToInventory<T>(T target, string subtype, MyFixedPoint currentItemAmount, Func<T, MyInventory> getInventory)
+        {
+            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
+            if (componentDefinition == null)
+                return;
+
+            ComponentData componentData;
+            if (!TargetItems.TryGetValue(subtype, out componentData))
+                return;
+
+            MyFixedPoint neededItemsNumber = componentData.StockAmount - currentItemAmount;
+            if (neededItemsNumber <= 0)
+                return;
+
+            if (!TetherGridHasItem(subtype, neededItemsNumber))
+                return;
+   
+            if (RemoveItemFromTetherGrid(subtype, neededItemsNumber, true))
+            {
+                var inventory = getInventory(target);
+                if (inventory.CanItemsBeAdded(neededItemsNumber, componentDefinition.Id))
+                {
+                    var inventoryItem = new MyObjectBuilder_InventoryItem()
+                    {
+                        Amount = neededItemsNumber,
+                        Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
+                    };
+
+                    inventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
+                }
+                else
+                {
+                    Log.Error($"[{target}]'s Inventory no longer has space for Item: [{subtype}] [{neededItemsNumber}] after Removal");
+                    if (Block.GetInventory().CanItemsBeAdded(neededItemsNumber, componentDefinition.Id))
+                    {
+                        var inventoryItem = new MyObjectBuilder_InventoryItem()
+                        {
+                            Amount = neededItemsNumber,
+                            Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
+                        };
+
+                        Block.GetInventory().AddItems(inventoryItem.Amount, inventoryItem.Content);
+                    }
+                    else
+                    {
+                        Log.Error($"Failed to Shift Item [{subtype}] back to Tether [{Block.EntityId}]");
+                    }
+                }
+            }           
+        }
+
+        private void RemoveItemFromInventory<T>(T target, string subtype, MyFixedPoint overstockItemAmount, Func<T, MyInventory> getInventory)
+        {
+            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
+            if (componentDefinition == null || !Block.GetInventory().CanItemsBeAdded(overstockItemAmount, componentDefinition.Id))
+                return;
+
+            var targetInventory = getInventory(target);
+            var blockInventory = Block.GetInventory();
+
+            ComponentData componentData = null;
+            TargetItems.TryGetValue(subtype, out componentData);
+
+            if (targetInventory.ContainItems(overstockItemAmount, componentDefinition.Id) && blockInventory.CanItemsBeAdded(overstockItemAmount, componentDefinition.Id))
+            {
+                var inventoryItem = new MyObjectBuilder_InventoryItem()
+                {
+                    Amount = overstockItemAmount,
+                    Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
+                };
+
+                targetInventory.RemoveItemsOfType(inventoryItem.Amount, componentDefinition.Id);
+                blockInventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
+            }
+            else
+            {
+                Log.Error($"Item [{subtype}] no longer exists in [{target}]'s Inventory");
+            }
+        }
+
+        private bool TetherGridHasItem(string subtype, MyFixedPoint neededItemsNumber)
+        {
+            MyCubeGrid tetherGrid = (MyCubeGrid)Block.CubeGrid;
+            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
+            var subgroups = new List<IMyCubeGrid>();
+            gridGroup.GetGrids(subgroups);     
+
+            foreach (var grid in subgroups)
+            {
+                foreach (var block in ((MyCubeGrid)grid).GetFatBlocks().Where(block => block.GetInventory() != null))
+                {
+                    var blockInventory = block.GetInventory();
+
+                    foreach (var item in blockInventory.GetItems())
+                    {
+                        var component = item.Content as MyObjectBuilder_Component;
+                        if (component == null || component.SubtypeName != subtype || item.Amount < neededItemsNumber) 
+                            continue;
+
+                        if (Block.GetInventory().IsConnectedTo(blockInventory))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private bool RemoveItemFromTetherGrid(string subtype, MyFixedPoint neededItemsNumber, bool gridHasComp)
+        {
+            MyCubeGrid tetherGrid = (MyCubeGrid)Block.CubeGrid;
+            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
+            var subgroups = new List<IMyCubeGrid>();
+            gridGroup.GetGrids(subgroups);
+
+            if (gridHasComp)
+            {
+                foreach (var grid in subgroups)
+                {
+                    foreach (var block in ((MyCubeGrid)grid).GetFatBlocks())
+                    {
+                        var blockInventory = block.GetInventory();
+                        if (blockInventory == null) continue;
+
+                        foreach (var item in blockInventory.GetItems())
+                        {
+                            var component = item.Content as MyObjectBuilder_Component;
+                            if (component != null && component.SubtypeName == subtype)
+                            {
+                                blockInventory.RemoveItemsOfType(neededItemsNumber, item.Content);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        #endregion
+
         #region Utilities
         public static T GetLogic<T>(long entityId) where T : MyGameLogicComponent
         {
@@ -273,49 +564,7 @@ namespace InventoryTether
             NotifNoneStatus.Text = text;
             NotifNoneStatus.AliveTime = aliveTime;
             NotifNoneStatus.Show();
-        }
-
-        private List<IMyCharacter> NearPlayers()
-        {
-            List<IMyCharacter> nearbyPlayers = new List<IMyCharacter>();           
-
-            if (Block == null) 
-                return nearbyPlayers;
-
-            var entities = new List<MyEntity>();
-            var bound = new BoundingSphereD(Block.GetPosition(), BlockRange / 2);
-            MyGamePruningStructure.GetAllEntitiesInSphere(ref bound, entities);
-
-            List<IMyPlayer> actualPlayers = new List<IMyPlayer>();
-            MyAPIGateway.Players.GetPlayers(actualPlayers);
-
-            foreach (var entity in entities)
-            {
-                IMyCharacter player = entity as IMyCharacter;
-                if (player != null)
-                {;
-                    if (bound.Contains(player.GetPosition()) != ContainmentType.Disjoint)
-                    {
-                        foreach (IMyPlayer realplayer in actualPlayers)
-                        {
-                            if(realplayer.Character?.EntityId == player.EntityId)
-                            {
-                                var playerRelation = Block.GetUserRelationToOwner(realplayer.IdentityId);
-
-                                if (playerRelation.IsFriendly())
-                                {
-                                    nearbyPlayers.Add(realplayer.Character);
-                                }
-                                else
-                                    continue;
-                            }
-                        }
-                    }
-                }
-            }
-
-            return nearbyPlayers;
-        }
+        }   
 
         public bool IsSmallGrid()
         {
@@ -324,6 +573,15 @@ namespace InventoryTether
                 Block.BlockDefinition.SubtypeId == "Quantum_Tether_Medium");
         }
 
+        private MyFixedPoint ClampMyFixedPoint(MyFixedPoint value, MyFixedPoint min, MyFixedPoint max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+        #endregion
+
+        #region Visuals
         private void CheckShowArea()
         {
             if (!ShowArea || MyAPIGateway.Utilities.IsDedicated)
@@ -367,50 +625,6 @@ namespace InventoryTether
             {
                 Block.SetEmissivePartsForSubparts(EmissiveMaterialName, Color.Yellow, 0.75f);
                 EmissiveSet = false;
-            }
-        }
-
-        private MyFixedPoint ClampMyFixedPoint(MyFixedPoint value, MyFixedPoint min, MyFixedPoint max)
-        {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-
-        // Garnular Dict Sync
-        public void AddOrUpdateTargetItem(string key, ComponentData componentData)
-        {
-            componentData.StockAmount = ClampMyFixedPoint(componentData.StockAmount, (MyFixedPoint)Config.MinStockAmount, (MyFixedPoint)Config.MaxStockAmount);
-
-            if (!TargetItems.ContainsKey(key))
-            {
-                TargetItems.Add(key, componentData);
-            }
-            else
-            {
-                TargetItems[key] = componentData;
-            }
-
-            SaveSettings();
-            DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), key, componentData);
-        }
-
-        public void RemoveTargetItem(string key)
-        {
-            if (TargetItems.ContainsKey(key))
-            {
-                TargetItems.Remove(key);
-
-                SaveSettings();
-                DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), key, null);
-            }
-        }
-
-        private void SyncTargetItemsToClients()
-        {
-            foreach (var item in TargetItems)
-            {
-                DictSyncPacket.SyncDictionaryEntry(Block.EntityId, nameof(TargetItems), item.Key, item.Value);
             }
         }
         #endregion
@@ -493,253 +707,7 @@ namespace InventoryTether
                 Log.Error($"Error saving settings for {Block.EntityId}!\n{e}");
             }
         }
-        #endregion
-
-        #region Main
-        private void ScanForTargets()
-        {
-            if (!Block.Enabled) return;
-
-            foreach (var player in NearPlayers())
-            {
-                Log.Info($"Handling Inventory for: {player.DisplayName}");
-                HandleInventory(
-                    player.GetInventory() as MyInventory, player,
-                    (p, subtype, amount) => AddItemToInventory(p, subtype, amount, t => t.GetInventory() as MyInventory),
-                    (p, subtype, amount) => RemoveItemFromInventory(p, subtype, amount, t => t.GetInventory() as MyInventory)
-                );
-            }
-
-            /*foreach (var grid in NearGrids())
-            {
-                var gridGroup = grid.GetGridGroup(GridLinkTypeEnum.Logical);
-                var subgroups = new List<IMyCubeGrid>();
-                gridGroup.GetGrids(subgroups);
-
-                foreach (var groupGrid in subgroups)
-                {
-                    var fatblocks = ((MyCubeGrid)groupGrid).GetFatBlocks();
-                    foreach (var block in fatblocks)
-                    {
-                        IMyCubeBlock castedBlock = block as IMyCubeBlock;
-
-                        if (castedBlock.BlockDefinition.SubtypeName == "GridTetherReciever")
-                        {
-                            HandleInventory(block.GetInventory(), block,
-                                (b, subtype, amount) => AddItemToInventory(b, subtype, amount, t => t.GetInventory() as MyInventory),
-                                (b, subtype, amount) => RemoveItemFromInventory(b, subtype, amount, t => t.GetInventory() as MyInventory)
-                            );
-                        }
-                    }
-                }
-            }*/
-        }
-
-        private void HandleInventory<T>(MyInventory inventory, T target, Action<T, string, MyFixedPoint> addItemMethod, Action<T, string, MyFixedPoint> removeItemMethod)
-        {
-            if (inventory == null)
-                return;
-
-            if (TargetItems.Count == 0 && HardCap)
-            {
-                foreach (var item in inventory.GetItems())
-                {
-                    var component = item.Content as MyObjectBuilder_Component;
-                    if (component != null && item.Amount > 0)
-                    {
-                        removeItemMethod(target, component.SubtypeName, item.Amount);
-                        break;
-                    }
-                }
-                return;
-            }
-
-            foreach (var subtype in TargetItems.Keys)
-            {
-                bool subtypeFound = false;
-                bool itemStocked = false;
-                bool itemOverStocked = false;
-                MyFixedPoint itemAmount = 0;
-                MyFixedPoint overstockItemAmount = 0;
-
-                ComponentData componentData;
-                if (!TargetItems.TryGetValue(subtype, out componentData))
-                    continue;
-
-                foreach (var item in inventory.GetItems())
-                {
-                    var component = item.Content as MyObjectBuilder_Component;
-                    if (component == null || component.SubtypeName != subtype)
-                        continue;
-
-                    if (item.Amount >= componentData.StockAmount)
-                    {
-                        itemStocked = true;
-
-                        if (item.Amount > componentData.StockAmount && HardCap)
-                        {
-                            itemOverStocked = true;
-                            overstockItemAmount = item.Amount - componentData.StockAmount;
-                        }
-                        break;
-                    }
-                    else if (item.Amount < componentData.StockAmount)
-                    {
-                        itemAmount = item.Amount;
-                        break;
-                    }
-                }
-
-                if (!itemStocked)
-                {                    
-                    addItemMethod(target, subtype, itemAmount);
-                }
-                else if (itemOverStocked && HardCap)
-                {
-                    removeItemMethod(target, subtype, overstockItemAmount);
-                }
-            }
-        }
-
-        private void AddItemToInventory<T>(T target, string subtype, MyFixedPoint currentItemAmount, Func<T, MyInventory> getInventory)
-        {
-            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
-            if (componentDefinition == null)
-                return;
-
-            ComponentData componentData;
-            if (!TargetItems.TryGetValue(subtype, out componentData))
-                return;
-
-            MyFixedPoint neededItemsNumber = componentData.StockAmount - currentItemAmount;
-            if (neededItemsNumber <= 0)
-                return;
-
-            bool invDisconnect = false;
-            if (!TetherGridHasItem(subtype, neededItemsNumber, out invDisconnect))
-            {
-                return;
-            }
-
-            if (RemoveItemFromTetherGrid(subtype, neededItemsNumber, true))
-            {
-                var inventory = getInventory(target);
-                if (inventory.CanItemsBeAdded(neededItemsNumber, componentDefinition.Id))
-                {
-                    var inventoryItem = new MyObjectBuilder_InventoryItem()
-                    {
-                        Amount = neededItemsNumber,
-                        Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
-                    };
-
-                    inventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
-                }
-            }
-        }
-
-        private void RemoveItemFromInventory<T>(T target, string subtype, MyFixedPoint overstockItemAmount, Func<T, MyInventory> getInventory)
-        {
-            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
-            if (componentDefinition == null || !TetherBlockHasSpace(subtype, overstockItemAmount))
-                return;
-
-            var targetInventory = getInventory(target);
-            var blockInventory = Block.GetInventory();
-
-            ComponentData componentData = null;
-            TargetItems.TryGetValue(subtype, out componentData);
-
-            if (targetInventory.ContainItems(overstockItemAmount, componentDefinition.Id))
-            {
-                var inventoryItem = new MyObjectBuilder_InventoryItem()
-                {
-                    Amount = overstockItemAmount,
-                    Content = new MyObjectBuilder_Component() { SubtypeName = subtype },
-                };
-
-                targetInventory.RemoveItemsOfType(inventoryItem.Amount, componentDefinition.Id);
-                blockInventory.AddItems(inventoryItem.Amount, inventoryItem.Content);
-            }
-            else
-            {
-                Log.Error($"Item [{subtype}] no longer exists in [{target}]'s Inventory");
-            }
-        }
-
-        private bool TetherGridHasItem(string subtype, MyFixedPoint neededItemsNumber, out bool invDisconnect)
-        {
-            MyCubeGrid tetherGrid = (MyCubeGrid)Block.CubeGrid;
-            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
-            var subgroups = new List<IMyCubeGrid>();
-            gridGroup.GetGrids(subgroups);
-
-            foreach (var grid in subgroups)
-            {
-                foreach (var block in ((MyCubeGrid)grid).GetFatBlocks())
-                {
-                    var blockInventory = block.GetInventory();
-                    if (blockInventory == null) continue;
-
-                    foreach (var item in blockInventory.GetItems())
-                    {
-                        var component = item.Content as MyObjectBuilder_Component;
-                        if (component == null || component.SubtypeName != subtype || item.Amount < neededItemsNumber) continue;
-
-                        if (Block.GetInventory().IsConnectedTo(blockInventory))
-                        {
-                            invDisconnect = false;
-                            return true;
-                        }
-                        else
-                        {
-                            invDisconnect = true;
-                            return false;
-                        }
-                    }
-                }
-            }
-
-            invDisconnect = false;
-            return false;
-        }
-
-        private bool TetherBlockHasSpace(string subtype, MyFixedPoint overstockItemAmount)
-        {
-            var componentDefinition = MyDefinitionManager.Static.GetPhysicalItemDefinition(new MyDefinitionId(typeof(MyObjectBuilder_Component), subtype));
-            return componentDefinition != null && Block.GetInventory().CanItemsBeAdded(overstockItemAmount, componentDefinition.Id);
-        }
-
-        private bool RemoveItemFromTetherGrid(string subtype, MyFixedPoint neededItemsNumber, bool gridHasComp)
-        {
-            MyCubeGrid tetherGrid = (MyCubeGrid)Block.CubeGrid;
-            var gridGroup = tetherGrid.GetGridGroup(GridLinkTypeEnum.Logical);
-            var subgroups = new List<IMyCubeGrid>();
-            gridGroup.GetGrids(subgroups);
-
-            if (gridHasComp)
-            {
-                foreach (var grid in subgroups)
-                {
-                    foreach (var block in ((MyCubeGrid)grid).GetFatBlocks())
-                    {
-                        var blockInventory = block.GetInventory();
-                        if (blockInventory == null) continue;
-
-                        foreach (var item in blockInventory.GetItems())
-                        {
-                            var component = item.Content as MyObjectBuilder_Component;
-                            if (component != null && component.SubtypeName == subtype)
-                            {
-                                blockInventory.RemoveItemsOfType(neededItemsNumber, item.Content);
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-        #endregion
+        #endregion     
     }
 
     [ProtoContract]

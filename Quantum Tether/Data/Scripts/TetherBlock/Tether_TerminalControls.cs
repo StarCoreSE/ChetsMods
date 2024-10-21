@@ -124,7 +124,7 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    foreach (var definition in logic.definitionsInSession)
+                    foreach (var definition in logic.ComponentDefinitions)
                     {
                         var componentDef = definition as MyComponentDefinition;
                         if (componentDef != null)
