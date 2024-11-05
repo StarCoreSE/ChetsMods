@@ -10,6 +10,7 @@ using Sandbox.Game;
 using Sandbox.Definitions;
 using Sandbox.ModAPI;
 using Sandbox.Common.ObjectBuilders;
+using ProtoBuf;
 using VRage;
 using VRageMath;
 using VRage.Game;
@@ -19,13 +20,11 @@ using VRage.Game.Entity;
 using VRage.ModAPI;
 using VRage.ObjectBuilders;
 using VRage.Utils;
-using InventoryTether.Particle;
+using VRage.Collections;
 using static VRageRender.MyBillboard;
+using InventoryTether.Particle;
 using InventoryTether.Config;
 using InventoryTether.Networking.Custom;
-using ProtoBuf;
-using VRage.Collections;
-using static VRage.Game.MyObjectBuilder_BehaviorTreeDecoratorNode;
 
 namespace InventoryTether
 {
@@ -90,13 +89,11 @@ namespace InventoryTether
         private bool EmissiveSet = false;
 
         public bool ShowArea = false;
-
         private bool ClientSettingsLoaded = false;
-
         public DictionaryValuesReader<MyDefinitionId, MyDefinitionBase> ComponentDefinitions = new DictionaryValuesReader<MyDefinitionId, MyDefinitionBase>();
-        public StringBuilder TempStockAmount = new StringBuilder();
-        public List<MyTerminalControlListBoxItem> TempItemsToAdd = new List<MyTerminalControlListBoxItem>();
-        public List<MyTerminalControlListBoxItem> TempItemsToRemove = new List<MyTerminalControlListBoxItem>();
+        public StringBuilder _tempStockAmount = new StringBuilder();
+        public List<MyTerminalControlListBoxItem> _tempItemsToAdd = new List<MyTerminalControlListBoxItem>();
+        public List<MyTerminalControlListBoxItem> _tempItemsToRemove = new List<MyTerminalControlListBoxItem>();
 
         private MyResourceSinkComponent Sink = null;
 
@@ -647,7 +644,7 @@ namespace InventoryTether
 
             try
             {
-                var loadedSettings = MyAPIGateway.Utilities.SerializeFromBinary<RepairSettings>(Convert.FromBase64String(rawData));
+                var loadedSettings = MyAPIGateway.Utilities.SerializeFromBinary<TetherSettings>(Convert.FromBase64String(rawData));
 
                 if (loadedSettings != null)
                 {
@@ -690,7 +687,7 @@ namespace InventoryTether
                     Block.Storage = new MyModStorageComponent();
                 }
 
-                var settings = new RepairSettings
+                var settings = new TetherSettings
                 {
                     Stored_HardCap = HardCap,
                     Stored_BlockRange = BlockRange,
@@ -729,7 +726,7 @@ namespace InventoryTether
     }
 
     [ProtoContract]
-    public class RepairSettings
+    public class TetherSettings
     {
         [ProtoMember(51)]
         public bool Stored_HardCap { get; set; }

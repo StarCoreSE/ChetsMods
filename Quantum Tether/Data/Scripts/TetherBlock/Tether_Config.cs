@@ -15,14 +15,6 @@ namespace InventoryTether.Config
         public override void LoadData()
         {
             Config.Load();
-
-            // example usage/debug
-            MyLog.Default.WriteLineAndConsole($"### SomeNumber value={Config.MinimumPowerRequirement}");
-            MyLog.Default.WriteLineAndConsole($"### ToggleThings value={Config.MaximumPowerRequirement}");
-            MyLog.Default.WriteLineAndConsole($"### ToggleThings value={Config.MinBlockRange}");
-            MyLog.Default.WriteLineAndConsole($"### ToggleThings value={Config.MaxBlockRange}");
-            MyLog.Default.WriteLineAndConsole($"### ToggleThings value={Config.MinStockAmount}");
-            MyLog.Default.WriteLineAndConsole($"### ToggleThings value={Config.MaxStockAmount}");
         }
     }
 

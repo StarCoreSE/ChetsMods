@@ -66,7 +66,18 @@ namespace InventoryTether
                 }
             };
             RangeSlider.Getter = (b) => b.GameLogic.GetAs<InventoryTether>().BlockRange;
-            RangeSlider.Setter = (b, v) => b.GameLogic.GetAs<InventoryTether>().BlockRange = (int)Math.Round(v, 1);
+            RangeSlider.Setter = (b, v) =>
+            {
+                var logic = GetLogic(b);
+                if (logic != null)
+                {
+                    var roundedValue = (float)Math.Round(v, 1);
+                    if (Math.Abs(logic.BlockRange - roundedValue) > 0.99f)
+                    {
+                        logic.BlockRange = roundedValue;
+                    }
+                }
+            };
             RangeSlider.SupportsMultipleBlocks = true;
             MyAPIGateway.TerminalControls.AddControl<IMyCollector>(RangeSlider);
             #endregion
@@ -141,7 +152,7 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    logic.TempItemsToAdd = selected;
+                    logic._tempItemsToAdd = selected;
                 }
             };
             componentSelectionBox.SupportsMultipleBlocks = true;
@@ -158,7 +169,7 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    logic.TempStockAmount = v;
+                    logic._tempStockAmount = v;
                 }
             };
             componentStockAmountBox.Getter = (b) => 
@@ -166,7 +177,7 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    return logic.TempStockAmount;
+                    return logic._tempStockAmount;
                 }
                 else
                     return new StringBuilder("Error!");
@@ -200,7 +211,7 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    logic.TempItemsToRemove = selected;
+                    logic._tempItemsToRemove = selected;
                 }
             };
             selectionDisplayBox.SupportsMultipleBlocks = true;
@@ -216,16 +227,16 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    if (logic.TempItemsToAdd.Count == 0) 
+                    if (logic._tempItemsToAdd.Count == 0) 
                         return;
 
                     float floatStockAmount;
-                    if (!float.TryParse(logic.TempStockAmount.ToString(), out floatStockAmount))
+                    if (!float.TryParse(logic._tempStockAmount.ToString(), out floatStockAmount))
                     {
                         return;
                     }
 
-                    foreach (var item in logic.TempItemsToAdd)
+                    foreach (var item in logic._tempItemsToAdd)
                     {
                         var componentDef = (MyDefinitionId)item.UserData;
                         var subtypeName = componentDef.SubtypeName;
@@ -253,10 +264,10 @@ namespace InventoryTether
                 var logic = GetLogic(b);
                 if (logic != null)
                 {
-                    if (logic.TempItemsToRemove.Count == 0)
+                    if (logic._tempItemsToRemove.Count == 0)
                         return;
 
-                    foreach (var item in logic.TempItemsToRemove)
+                    foreach (var item in logic._tempItemsToRemove)
                     {
                         var subtypeName = item.UserData.ToString();
 
