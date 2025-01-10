@@ -74,12 +74,6 @@ namespace StarCore.Highlights
             new HighlightFilter("LightArmor", new List<string>()),
         };
 
-        public Dictionary<long, Dictionary<HighlightFilter, bool>> ActiveHighlights = new Dictionary<long, Dictionary<HighlightFilter, bool>>();
-
-        public Dictionary<long, IMyCubeGrid> ActiveGrids = new Dictionary<long, IMyCubeGrid>();
-        public Dictionary<long, List<IMySlimBlock>> ActiveGridBlockLists = new Dictionary<long, List<IMySlimBlock>>();
-        public Dictionary<IMyCubeGrid, Dictionary<IMySlimBlock, string>> HighlightedBlocksPerGrid = new Dictionary<IMyCubeGrid, Dictionary<IMySlimBlock, string>> ();
-
         private Dictionary<string, Color> _typeColors = new Dictionary<string, Color>
         {
             { "Conveyor", new Color(255, 255, 0, 255) },   // Yellow
@@ -91,26 +85,36 @@ namespace StarCore.Highlights
             { "LightArmor", new Color(0, 255, 0, 255) },     // Green?
         };
 
+        public Dictionary<long, Dictionary<HighlightFilter, bool>> ActiveHighlights = new Dictionary<long, Dictionary<HighlightFilter, bool>>();
+
+        public Dictionary<long, IMyCubeGrid> ActiveGrids = new Dictionary<long, IMyCubeGrid>();
+        public Dictionary<long, List<IMySlimBlock>> ActiveGridBlockLists = new Dictionary<long, List<IMySlimBlock>>();
+        public Dictionary<IMyCubeGrid, Dictionary<IMySlimBlock, string>> HighlightedBlocksPerGrid = new Dictionary<IMyCubeGrid, Dictionary<IMySlimBlock, string>> ();     
+
         #region Update Methods
         public void Init()
         {
             I = this;
 
+            CoreSysAPI.Load();
             if (CoreSysAPI.IsReady)
             {
-                CoreSysAPI.Load();
                 CoreAPILoaded = true;
             }
-            
 
             Transparency = -0.5f;
             HighlightIntensity = 3;
+
+            if (!Utilities.FileExistsInGlobalStorage("HighlightFilters.xml"))
+            {
+                SaveFilters("HighlightFilters.xml");
+            }
+            LoadFilters("HighlightFilters.xml");
 
             if (!Utilities.FileExistsInGlobalStorage("HighlightColors.xml"))
             {
                 SaveColors("HighlightColors.xml");
             }
-
             LoadColors("HighlightColors.xml");
 
             Session.DamageSystem.RegisterBeforeDamageHandler(0, HandleDamageEvent);
@@ -139,21 +143,18 @@ namespace StarCore.Highlights
 
             if (CoreAPILoaded)
             {
-                HashSet<MyDefinitionId> defs = new HashSet<MyDefinitionId>();
-                CoreSysAPI.GetAllCoreWeapons(defs);
+                HashSet<MyDefinitionId> coreDefs = new HashSet<MyDefinitionId>();
+                CoreSysAPI.GetAllCoreTurrets(coreDefs);
 
-                foreach (var def in defs)
+                foreach (var coreDef in coreDefs)
                 {
-                    Filters[5].Subtypes.Add(def.SubtypeName);
+                    Filters[4].Subtypes.Add(coreDef.SubtypeName.ToString());
                 }
-            }
 
-            MyLog.Default.WriteLine(string.Join(", ", Filters[5].Subtypes));
+                MyLog.Default.WriteLine(string.Join(", ", Filters[4].Subtypes));
+            }        
 
             CurrentFilter = Filters.First();
-
-            Filters.Add(new HighlightFilter("CustomTest01", new List<string> { "LargeBlockLargeIndustrialContainer" }));
-            _typeColors.Add("CustomTest01", Color.Maroon);
         }
 
         public void Update()
@@ -221,6 +222,9 @@ namespace StarCore.Highlights
             {
                 CoreSysAPI.Unload();
             }
+
+            SaveFilters("HighlightFilters.xml");
+            SaveColors("HighlightColors.xml");
 
             Filters.Clear();
             ActiveHighlights.Clear();
@@ -547,6 +551,56 @@ namespace StarCore.Highlights
         {
             filter = Filters.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             return (filter != null);
+        }
+        #endregion
+
+        #region Custom Filters Load/Save
+        public void LoadFilters(string filePath)
+        {
+            if (!Utilities.FileExistsInGlobalStorage(filePath))
+                return;
+
+            using (var reader = Utilities.ReadFileInGlobalStorage(filePath))
+            {
+                var xml = reader.ReadToEnd();
+                var serializableData = Utilities.SerializeFromXML<List<SerializableFilter>>(xml);
+
+                var uniqueNames = new HashSet<string>();
+
+                Filters = serializableData
+                    .Where(entry => uniqueNames.Add(entry.Name)) // Only keep the first occurrence of each Name
+                    .Select(entry => new HighlightFilter(entry.Name, entry.Subtypes.ToList()))
+                    .ToList();
+            }
+        }
+
+        public void SaveFilters(string filePath)
+        {
+            var uniqueNames = new HashSet<string>();
+            var serializableData = Filters
+                .Where(filter => uniqueNames.Add(filter.Name))
+                .Select(filter => new SerializableFilter
+                {
+                    Name = filter.Name,
+                    Subtypes = filter.Subtypes.ToArray()
+                })
+                .ToList();
+
+            using (var writer = Utilities.WriteFileInGlobalStorage(filePath))
+            {
+                var xml = Utilities.SerializeToXML(serializableData);
+                writer.Write(xml);
+            }
+        }
+
+        public class SerializableFilter
+        {
+            [XmlElement("FilterName")]
+            public string Name { get; set; }
+
+            [XmlArray("Subtypes")]
+            [XmlArrayItem("Subtype")]
+            public string[] Subtypes { get; set; }
         }
         #endregion
 
