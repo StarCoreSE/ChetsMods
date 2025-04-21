@@ -42,8 +42,8 @@ namespace StarCore.Highlights
         public static HighlightTool_Core Instance = null;
         private IMyAutomaticRifleGun EquippedTool;
 
-        ModeSwitchEnum CurrentMode;         
-        DiagnosticTypeEnum DiagnosticType;
+        internal ModeSwitchEnum CurrentMode;         
+        internal DiagnosticTypeEnum DiagnosticType;
  
         private int currentIndex = 0;
       
@@ -61,6 +61,7 @@ namespace StarCore.Highlights
 
             CutawayManager.I.Init();
             HighlightManager.I.Init();
+            HUDManager.I.Init();
 
             var gunDef = MyDefinitionManager.Static.GetWeaponDefinition(new MyDefinitionId(typeof(MyObjectBuilder_WeaponDefinition), "WeaponHighlightTool"));
             for (int i = 0; i < gunDef.WeaponAmmoDatas.Length; i++)
@@ -99,6 +100,7 @@ namespace StarCore.Highlights
 
             CutawayManager.I.Draw();
             HighlightManager.I.Draw();
+            HUDManager.I.Draw(EquippedTool != null);
         }
 
         protected override void UnloadData()
@@ -107,6 +109,7 @@ namespace StarCore.Highlights
 
             CutawayManager.I.Unload();
             HighlightManager.I.Unload();
+            HUDManager.I.Unload();
 
             Instance = null;
         }
@@ -153,7 +156,7 @@ namespace StarCore.Highlights
                         CutawayManager.I.ClearCache(true, CastForGrid());
                     if (CastForGrid() != null && HighlightManager.I.ActiveGrids.ContainsKey(CastForGrid().EntityId))
                         HighlightManager.I.ResetHighlights(CastForGrid().EntityId);
-                    Utilities.ShowNotification($"Mode Switched: {CurrentMode}");
+                    /*Utilities.ShowNotification($"Mode Switched: {CurrentMode}");*/
                 }
                 else if (scrollDelta < 0)
                 {
@@ -162,7 +165,7 @@ namespace StarCore.Highlights
                         CutawayManager.I.ClearCache(true, CastForGrid());
                     if (CastForGrid() != null && HighlightManager.I.ActiveGrids.ContainsKey(CastForGrid().EntityId))
                         HighlightManager.I.ResetHighlights(CastForGrid().EntityId);
-                    Utilities.ShowNotification($"Mode Switched: {CurrentMode}");
+                   /*Utilities.ShowNotification($"Mode Switched: {CurrentMode}");*/
                 }
                 return;
             }
@@ -191,7 +194,7 @@ namespace StarCore.Highlights
                 IMyCubeGrid grid = CastForGrid();
                 long entityId = grid != null ? grid.EntityId : 0;
                 HighlightManager.I.ResetHighlights(entityId);
-                Utilities.ShowNotification($"[Highlight] All Highlights Cleared!", 1000, "White");
+                /*Utilities.ShowNotification($"[Highlight] All Highlights Cleared!", 1000, "White");*/
             }
 
             if (scrollDelta != 0)
@@ -199,8 +202,8 @@ namespace StarCore.Highlights
                 int direction = scrollDelta > 0 ? 1 : -1;
                 HighlightManager.I.SwitchFilter(direction, ref currentIndex);
 
-                Utilities.ShowNotification($"[Highlight] Selected builtin {HighlightManager.I.CurrentFilter.Name}",
-                    1000, "White");
+                /*Utilities.ShowNotification($"[Highlight] Selected builtin {HighlightManager.I.CurrentFilter.Name}",
+                    1000, "White");*/
             }
 
             if (leftClick)
@@ -209,7 +212,7 @@ namespace StarCore.Highlights
                 long entityId = grid != null ? grid.EntityId : 0;
                 if (entityId == 0)
                 {
-                    Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");
+                    /*Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");*/
                     return;
                 }
 
@@ -221,7 +224,7 @@ namespace StarCore.Highlights
                 long entityId = grid != null ? grid.EntityId : 0;
                 if (entityId == 0)
                 {
-                    Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");
+                    /*Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");*/
                     return;
                 }
 
@@ -236,7 +239,7 @@ namespace StarCore.Highlights
             if (rKeyPressed)
             {
                 CutawayManager.I.ClearCache(false);
-                Utilities.ShowNotification($"[Cutaway] Cache Cleared!", 1000, "White");
+                /*Utilities.ShowNotification($"[Cutaway] Cache Cleared!", 1000, "White");*/
             }
 
             if (grid == null)
@@ -251,7 +254,7 @@ namespace StarCore.Highlights
                 double step = scrollDelta / 48.0;
                 CutawayManager.I.CutawayPosition += (float)step;
                 CutawayManager.I.UpdateBlocks(grid);
-                Utilities.ShowNotification($"[Cutaway] plane: {CutawayManager.I.CutawayPosition - 1.25f} for {grid.EntityId}", 1000, "White");
+                /*Utilities.ShowNotification($"[Cutaway] plane: {CutawayManager.I.CutawayPosition - 1.25f} for {grid.EntityId}", 1000, "White");*/
             }
 
             if (leftClick)
@@ -259,21 +262,21 @@ namespace StarCore.Highlights
                 CutawayManager.I.CutawayAxis = (CutawayManager.CutawayAxisEnum)(((int)CutawayManager.I.CutawayAxis + 1) % 3);
                 CutawayManager.I.CutawayPosition = (float)1.25;
                 CutawayManager.I.UpdateBlocks(grid);
-                Utilities.ShowNotification($"[Cutaway] Axis changed to {CutawayManager.I.CutawayAxis} for {grid.EntityId}", 1000, "White");
+                /*Utilities.ShowNotification($"[Cutaway] Axis changed to {CutawayManager.I.CutawayAxis} for {grid.EntityId}", 1000, "White");*/
             }
             else if (rightClick)
             {
                 CutawayManager.I.CutawayAxis = (CutawayManager.CutawayAxisEnum)(((int)CutawayManager.I.CutawayAxis + 3 - 1) % 3);
                 CutawayManager.I.CutawayPosition = (float)1.25;
                 CutawayManager.I.UpdateBlocks(grid);
-                Utilities.ShowNotification($"[Cutaway] Axis changed to {CutawayManager.I.CutawayAxis} for {grid.EntityId}", 1000, "White");
+                /*Utilities.ShowNotification($"[Cutaway] Axis changed to {CutawayManager.I.CutawayAxis} for {grid.EntityId}", 1000, "White");*/
             }
 
             if (middleMousebuttonPressed)
             {
                 CutawayManager.I.IsNormalInverted = !CutawayManager.I.IsNormalInverted;
                 CutawayManager.I.UpdateBlocks(grid);
-                Utilities.ShowNotification($"[Cutaway] Normal inverted: {CutawayManager.I.IsNormalInverted}", 1000, "White");
+                /*Utilities.ShowNotification($"[Cutaway] Normal inverted: {CutawayManager.I.IsNormalInverted}", 1000, "White");*/
             }        
         }
 
@@ -295,7 +298,7 @@ namespace StarCore.Highlights
                 var diagDict = GetOrCreateDictionary(ActiveDiagnostics, entityId);
 
                 diagDict[DiagnosticType] = true;
-                Utilities.ShowNotification($"[Diagnostic] Applied {DiagnosticType} for {entityId}", 1000, "White");
+                /*Utilities.ShowNotification($"[Diagnostic] Applied {DiagnosticType} for {entityId}", 1000, "White");*/
             }
             else if (rightClick)
             {
@@ -303,7 +306,7 @@ namespace StarCore.Highlights
                 long entityId = grid != null ? grid.EntityId : 0;
                 if (entityId == 0)
                 {
-                    Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");
+                   /*Utilities.ShowNotification("Invalid Target Entity!", 1000, "Red");*/
                     return;
                 }
 
@@ -311,7 +314,7 @@ namespace StarCore.Highlights
                 if (ActiveDiagnostics.TryGetValue(entityId, out diagDict) && diagDict.ContainsKey(DiagnosticType))
                 {
                     diagDict.Remove(DiagnosticType);
-                    Utilities.ShowNotification($"[Diagnostic] Removed {DiagnosticType} for {entityId}", 1000, "White");
+                    /*Utilities.ShowNotification($"[Diagnostic] Removed {DiagnosticType} for {entityId}", 1000, "White");*/
                 }
             }
         }
@@ -328,7 +331,7 @@ namespace StarCore.Highlights
             return nested;
         }
 
-        private IMyCubeGrid CastForGrid()
+        internal IMyCubeGrid CastForGrid()
         {
             var playerCamera = MyAPIGateway.Session.Camera;
             var cameraMatrix = playerCamera.WorldMatrix;

@@ -320,8 +320,8 @@ namespace StarCore.Highlights
                 activeHighlightsDict[CurrentFilter] = true;
                 HighlightWrapper(CurrentFilter, entityId);
 
-                Utilities.ShowNotification($"[Highlight] Applied Filter [{CurrentFilter.Name}]",
-                1000, "White");
+                /*Utilities.ShowNotification($"[Highlight] Applied Filter [{CurrentFilter.Name}]",
+                1000, "White");*/
             }
         }
 
@@ -338,13 +338,13 @@ namespace StarCore.Highlights
                     ActiveHighlights.Remove(entityId);
                     ResetHighlights(entityId);
 
-                    Utilities.ShowNotification($"[Highlight] Removed Last Filter [{CurrentFilter.Name}]",
+                    /*Utilities.ShowNotification($"[Highlight] Removed Last Filter [{CurrentFilter.Name}]",
                     1000, "White");
-                    Utilities.ShowNotification("Highlights Reset!", 1000, "Green");
+                    Utilities.ShowNotification("Highlights Reset!", 1000, "Green");*/
                 }
-                else
+                /*else
                     Utilities.ShowNotification($"[Highlight] Removed Filter [{CurrentFilter.Name}]",
-                    1000, "White");
+                    1000, "White");*/
                 
             }
         }
