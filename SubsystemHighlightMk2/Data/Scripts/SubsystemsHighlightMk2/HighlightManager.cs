@@ -463,11 +463,11 @@ namespace StarCore.Highlights
                             HighlightedBlocksPerGrid[cubeGrid][block] = CurrentFilter.Name;
 
                         if (block.FatBlock != null)
-                            MyVisualScriptLogicProvider.SetHighlightLocal(block.FatBlock.Name, 3, -1, color);
+                            MyVisualScriptLogicProvider.SetHighlightLocal(block.FatBlock.Name, HighlightIntensity, -1, color);
                         break;
                     }
                     else
-                        block.Dithering = -0.5f;
+                        block.Dithering = Transparency;
                 }          
             }
         }

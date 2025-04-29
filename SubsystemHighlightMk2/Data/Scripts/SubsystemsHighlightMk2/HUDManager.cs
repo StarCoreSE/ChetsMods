@@ -24,8 +24,11 @@ namespace StarCore.Highlights
         private HudAPIv2 HudAPI = new HudAPIv2();
         private bool HUDAPILoaded = false;
 
-        HUDMessage HighlighterHUD;
-        StringBuilder HighlighterHUDContent;
+        HUDMessage SubsystemHUD;
+        StringBuilder SubsystemHUDContent;
+
+        HUDMessage KeybindHUD;
+        StringBuilder KeybindHUDContent;
 
         #region Update Methods
         public void Init()
@@ -45,72 +48,109 @@ namespace StarCore.Highlights
 
         public void Draw(bool ToolEquipped)
         {
+            #region Subsystem HUD
             if (!ToolEquipped)
             {
-                if (HighlighterHUDContent != null)
-                    HighlighterHUDContent.Clear();
+                if (SubsystemHUDContent != null)
+                    SubsystemHUDContent.Clear();
+
+                if (KeybindHUDContent != null)
+                    KeybindHUDContent.Clear();
 
                 return;
             }
 
-            if (HighlighterHUDContent == null)
+            if (SubsystemHUDContent == null)
             {
-                HighlighterHUDContent = new StringBuilder();
+                SubsystemHUDContent = new StringBuilder();
             }
-            HighlighterHUDContent.Clear();
+            SubsystemHUDContent.Clear();
 
             var activeMode = HighlightTool_Core.Instance.CurrentMode.ToString();
-            HighlighterHUDContent.Append($"<color=yellow>Mode: <color=white>{activeMode}\n");      
+            SubsystemHUDContent.Append($"<color=yellow>Mode: <color=white>{activeMode}\n");      
 
             if (HighlightTool_Core.Instance.CurrentMode == 0)
             {
                 var selectedHighlight = HighlightManager.I.CurrentFilter.Name;
 
-                HighlighterHUDContent.Append($"\n<color=yellow>Filter: <color=white>{selectedHighlight} \n");
+                SubsystemHUDContent.Append($"\n<color=yellow>Filter: <color=white>{selectedHighlight} \n");
 
                 IMyCubeGrid grid = HighlightTool_Core.Instance.CastForGrid();
                 long entityId = grid != null ? grid.EntityId : 0;
                 var currentTarget = grid != null ? grid.DisplayName : "None";
 
-                HighlighterHUDContent.Append($"\n<color=yellow>Current Target:\n<color=white>{currentTarget}\n");
+                SubsystemHUDContent.Append($"\n<color=yellow>Current Target:\n<color=white>{currentTarget}\n");
 
                 Dictionary<HighlightFilter, bool> activeHighlightsDict;
                 if(HighlightManager.I.ActiveHighlights.TryGetValue(entityId, out activeHighlightsDict))
                 {
                     string filterNames = string.Join("\n", activeHighlightsDict.Keys.Select(f => f.Name));
-                    HighlighterHUDContent.Append($"\n<color=yellow>Applied Filters:\n<color=white>{filterNames}");
+                    SubsystemHUDContent.Append($"\n<color=yellow>Applied Filters:\n<color=white>{filterNames}");
                 }
                 else if (grid != null)         
-                    HighlighterHUDContent.Append($"\n<color=yellow>No Applied Filters");               
+                    SubsystemHUDContent.Append($"\n<color=yellow>No Applied Filters");               
             }
             else if ((int)HighlightTool_Core.Instance.CurrentMode == 1)
             {
                 var currentAxis = CutawayManager.I.CutawayAxis.ToString();
-                HighlighterHUDContent.Append($"\n<color=yellow>Axis: <color=white>{currentAxis}\n");
+                SubsystemHUDContent.Append($"\n<color=yellow>Axis: <color=white>{currentAxis}\n");
 
                 IMyCubeGrid grid = HighlightTool_Core.Instance.CastForGrid();
                 var currentTarget = grid != null ? grid.DisplayName : "None";
-                HighlighterHUDContent.Append($"\n<color=yellow>Current Target:\n<color=white>{currentTarget}\n");
+                SubsystemHUDContent.Append($"\n<color=yellow>Current Target:\n<color=white>{currentTarget}\n");
 
                 if (grid != null)
                 {
                     var currentPosition = CutawayManager.I.CutawayPosition.ToString();
-                    HighlighterHUDContent.Append($"\n<color=yellow>Position: <color=white>{currentPosition}\n");
+                    SubsystemHUDContent.Append($"\n<color=yellow>Position: <color=white>{currentPosition}\n");
 
-                    HighlighterHUDContent.Append($"\n<color=yellow>Inverted: <color=white>{CutawayManager.I.IsNormalInverted.ToString()}\n");
+                    SubsystemHUDContent.Append($"\n<color=yellow>Inverted: <color=white>{CutawayManager.I.IsNormalInverted.ToString()}\n");
                 }           
             }
             else if ((int)HighlightTool_Core.Instance.CurrentMode == 2)
             {
+                var currentType = DiagnosticManager.I.DiagnosticType.ToString();
+                SubsystemHUDContent.Append($"\n<color=yellow>Type: <color=white>{currentType}\n");
 
+                IMyCubeGrid grid = HighlightTool_Core.Instance.CastForGrid();
+                var currentTarget = grid != null ? grid.DisplayName : "None";
+                SubsystemHUDContent.Append($"\n<color=yellow>Current Target:\n<color=white>{currentTarget}\n");
+
+                if (grid != null)
+                {
+                    var value = (DiagnosticManager.DiagnosticTypeEnum)0;
+                    if (DiagnosticManager.I.ActiveDiagnostics.TryGetValue(grid.EntityId, out value))
+                    {
+                        var appliedType = DiagnosticManager.I.ActiveDiagnostics[grid.EntityId].ToString();
+                        SubsystemHUDContent.Append($"\n<color=yellow>Applied Type: <color=white>{appliedType}\n");
+
+                        switch (DiagnosticManager.I.ActiveDiagnostics[grid.EntityId])
+                        {
+                            case DiagnosticManager.DiagnosticTypeEnum.Incomplete:
+                                SubsystemHUDContent.Append("\n<color=yellow>Yellow = Incomplete\n");
+                                SubsystemHUDContent.Append("<color=yellow>Red = Damaged\n");
+                                break;
+                            case DiagnosticManager.DiagnosticTypeEnum.Enabled:
+                                SubsystemHUDContent.Append("\n<color=yellow>Green = Enabled\n");
+                                SubsystemHUDContent.Append("<color=yellow>Red = Disabled\n");
+                                break;
+                            case DiagnosticManager.DiagnosticTypeEnum.Working:
+                                SubsystemHUDContent.Append("\n<color=yellow>Green = Functional, Working\n");
+                                SubsystemHUDContent.Append("<color=yellow>Light Blue = Functional, Idle\n");
+                                SubsystemHUDContent.Append("<color=yellow>Red = Damaged\n");
+                                break;
+
+                        }
+                    }          
+                }
             }
 
-            if (HighlighterHUD == null && HudAPI.Heartbeat)
+            if (SubsystemHUD == null && HudAPI.Heartbeat)
             {
-                HighlighterHUD = new HUDMessage
+                SubsystemHUD = new HUDMessage
                 (
-                    Message: HighlighterHUDContent,
-                    Origin: new Vector2D(-0.3f, -0.3f),
+                    Message: SubsystemHUDContent,
+                    Origin: new Vector2D(-0.25f, -0.3f),
                     TimeToLive: -1,
                     Scale: 0.75f,
                     HideHud: false,
@@ -119,9 +159,59 @@ namespace StarCore.Highlights
                 );
 
                /* HighlighterHUD.Offset = HighlighterHUD.GetTextLength() / 2;*/
-                HighlighterHUD.Visible = true;
+                SubsystemHUD.Visible = true;
+            }
+            #endregion
+
+            #region Keybind HUD
+            if(KeybindHUDContent == null)
+            {
+                KeybindHUDContent = new StringBuilder();
+            }
+            KeybindHUDContent.Clear();
+
+            KeybindHUDContent.Append($"<color=yellow>[LShift+MW] Cycle Mode\n");
+
+            if (HighlightTool_Core.Instance.CurrentMode == 0)
+            {
+                KeybindHUDContent.Append($"\n<color=yellow>[MW] Cycle Filter\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[R] Reset Filters\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[LMB] Apply Filter\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[RMB] Remove Filter\n");               
+            }
+            else if ((int)HighlightTool_Core.Instance.CurrentMode == 1)
+            {
+                KeybindHUDContent.Append($"\n<color=yellow>[MW] Move Cutaway\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[R] Reset Cutaway\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[MMB] Invert Cutaway\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[LMB] Cycle Axis\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[RMB] Cycle Axis\n");             
+            }
+            else if ((int)HighlightTool_Core.Instance.CurrentMode == 2)
+            {
+                KeybindHUDContent.Append($"\n<color=yellow>[MW] Cycle Filter\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[R] Reset Filter\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[LMB] Apply Filter\n");
+                KeybindHUDContent.Append($"\n<color=yellow>[RMB] Remove Filter\n");
             }
 
+            if (KeybindHUD == null && HudAPI.Heartbeat)
+            {
+                KeybindHUD = new HUDMessage
+                (
+                    Message: KeybindHUDContent,
+                    Origin: new Vector2D(0.1f, -0.3f),
+                    TimeToLive: -1,
+                    Scale: 0.65f,
+                    HideHud: false,
+                    Blend: BlendTypeEnum.PostPP,
+                    Font: "monospace"
+                );
+
+                /* HighlighterHUD.Offset = HighlighterHUD.GetTextLength() / 2;*/
+                KeybindHUD.Visible = true;
+            }
+            #endregion
         }
 
         public void Unload()
